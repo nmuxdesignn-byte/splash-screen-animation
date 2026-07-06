@@ -67,7 +67,7 @@ function PixelSparkle() {
             position: 'absolute', left: p.x, top: p.y,
             width: 4, height: 4,
             background: p.color,
-            boxShadow: '0 3.556px 3.556px #737373',
+            boxShadow: '0px 4px 2px 0px #737373',
           }}
         />
       ))}
@@ -87,24 +87,22 @@ function LoadingLabel({ text }) {
     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
       <PixelSparkle />
       {/* Fixed-height clip window for the ticker */}
-      <div style={{ position: 'relative', overflow: 'hidden', height: 17, width: 300 }}>
+      <div style={{ position: 'relative', overflow: 'hidden', height: 18, width: 240 }}>
         <AnimatePresence>
           <motion.span
             key={text}
-            initial={{ y: 17 }}
+            initial={{ y: 18 }}
             animate={{ y: 0 }}
-            exit={{ y: -17 }}
+            exit={{ y: -18 }}
             transition={{ duration: 0.3, ease: [0.25, 0.1, 0.25, 1] }}
             style={{
               position: 'absolute', top: 0, left: 0,
               display: 'block',
               fontFamily: 'GreedStandard',
-              fontWeight: 500,
+              fontWeight: 450,
               fontSize: 16,
-              letterSpacing: '2.72px',
-              textTransform: 'uppercase',
-              lineHeight: '17px',
-              background: 'linear-gradient(99.45deg, #595959 43.7%, #ffffff 150.44%)',
+              lineHeight: '18px',
+              background: 'linear-gradient(95.74deg, #000409 43.7%, #ffffff 150.44%)',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
               whiteSpace: 'nowrap',
