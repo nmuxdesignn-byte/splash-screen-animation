@@ -85,7 +85,9 @@ const LOADING_LABELS = [
 function LoadingLabel({ text }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-      <PixelSparkle />
+      <div style={{ height: 18, display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+        <PixelSparkle />
+      </div>
       {/* Fixed-height clip window for the ticker */}
       <div style={{ position: 'relative', overflow: 'hidden', height: 18, width: 240 }}>
         <AnimatePresence>
