@@ -19,46 +19,42 @@ const IMG = {
 const W = 1280
 const H = 960
 
-// Phase 0: gray bg, centered avatar + name         hold 1200ms
-// Phase 1: leaf wreaths swing in                   hold 900ms
-// Phase 2: intro shrinks+moves up, cards fly in    hold 1000ms
-// Phase 3: bg→white, header+bottom row in          hold 800ms
+// Phase 0: gray bg, avatar floats in                         hold 800ms
+// Phase 1: leaves spring open (bouncy), text fades up        hold 1400ms
+// Phase 2: cards fly from bottom to grid (no stop),
+//          intro simultaneously exits off the top            hold 1000ms
+// Phase 3: bg→white, header slides in, bottom row up        hold 800ms
 // Phase 4: toast (final)
-const PHASE_HOLD = [1200, 900, 1000, 800]
+const PHASE_HOLD = [800, 1400, 1000, 800]
 
-const SPRING     = { type: 'spring', stiffness: 85, damping: 20, mass: 1 }
-const EASE       = { duration: 0.65, ease: [0.25, 0.1, 0.25, 1] }
-const LEAF_SPRING = { type: 'spring', stiffness: 220, damping: 11, mass: 1 }
+const SPRING = { type: 'spring', stiffness: 85, damping: 20, mass: 1 }
+const EASE   = { duration: 0.65, ease: [0.25, 0.1, 0.25, 1] }
 
-// Intro block dimensions
+// Underdamped — leaves overshoot past 0° (outward) then spring back inward
+const LEAF_SPRING = { type: 'spring', stiffness: 180, damping: 7, mass: 1 }
+
+// Cards: slightly underdamped for a natural landing feel
+const CARD_SPRING = { type: 'spring', stiffness: 95, damping: 16, mass: 1 }
+
 const INTRO_W  = 342
 const INTRO_H  = 224
-const INTRO_X  = (W - INTRO_W) / 2        // 469 — centers the block
-const INTRO_Y0 = (H - INTRO_H) / 2        // 368 — centered in canvas
+const INTRO_X  = (W - INTRO_W) / 2   // 469 — centers the block
+const INTRO_Y0 = (H - INTRO_H) / 2   // 368 — centered in canvas
 
-// Phase 2: block shrinks to 0.7 and moves to top
-// With scale=0.7 around element center, visual center stays at (INTRO_X+171, introY+112)
-// We want visual center at (640, 140): introY = 140 - INTRO_H/2 = 28
-const INTRO_SCALE2 = 0.7
-const INTRO_Y2     = 28
-
-// Card y positions
-const CARD_Y_ENTER = 303    // phase 2: cards rest here
-const CARD_Y_GRID  = 112    // phase 3: final grid row
-
-const GRID_X    = [13, 435, 857]
-const TOP_IMGS  = [IMG.photoLeft, IMG.photoMid, IMG.photoRight]
-const BOT_ITEMS = [
+const CARD_Y_GRID = 112
+const GRID_X      = [13, 435, 857]
+const TOP_IMGS    = [IMG.photoLeft, IMG.photoMid, IMG.photoRight]
+const BOT_ITEMS   = [
   { x: 13,  src: IMG.promoCard,     border: false },
   { x: 435, src: IMG.photoBotMid,   border: true  },
   { x: 857, src: IMG.photoBotRight, border: true  },
 ]
 
-// ── Leaf wreath flanking the avatar ──────────────────────────────────────────
+// ── Leaf wreath ───────────────────────────────────────────────────────────────
 function Wreath({ size = 80, showLeaves = false }) {
-  const s     = size / 80
-  const cW    = 46 * s, cH = 81.778 * s
-  const iW    = 41.148 * s, iH = 96.503 * s
+  const s      = size / 80
+  const cW     = 46 * s, cH = 81.778 * s
+  const iW     = 41.148 * s, iH = 96.503 * s
   const totalW = 152 * s
 
   return (
@@ -145,15 +141,12 @@ export default function SplashScreenV4() {
     return () => clearTimeout(t)
   }, [phase])
 
-  const showWreath  = phase >= 1
-  const showIntro   = phase <= 2
-  const showCards   = phase >= 2
-  const isGrid      = phase >= 3
-  const showBottom  = phase >= 3
-  const showToast   = phase >= 4
-
-  const introScale = phase >= 2 ? INTRO_SCALE2 : 1
-  const introY     = phase >= 2 ? INTRO_Y2 : INTRO_Y0
+  const showWreath = phase >= 1
+  const showText   = phase >= 1
+  const showIntro  = phase <= 1   // exits when cards enter in phase 2
+  const showCards  = phase >= 2
+  const showBottom = phase >= 3
+  const showToast  = phase >= 4
 
   return (
     <div style={{
@@ -178,19 +171,31 @@ export default function SplashScreenV4() {
           {showIntro && (
             <motion.div
               key="intro"
-              initial={{ x: INTRO_X, y: INTRO_Y0, scale: 0.92, opacity: 0 }}
-              animate={{ x: INTRO_X, y: introY, scale: introScale, opacity: 1 }}
-              exit={{ opacity: 0, transition: { duration: 0.25, ease: 'easeIn' } }}
-              transition={phase >= 2 ? SPRING : EASE}
+              initial={{ x: INTRO_X, y: INTRO_Y0 + 24, opacity: 0, scale: 0.95 }}
+              animate={{ x: INTRO_X, y: INTRO_Y0, opacity: 1, scale: 1 }}
+              exit={{
+                y: -380,
+                opacity: 0,
+                transition: { duration: 0.55, ease: [0.4, 0, 1, 1] },
+              }}
+              transition={EASE}
               style={{
                 position: 'absolute', top: 0, left: 0,
                 width: INTRO_W,
                 display: 'flex', flexDirection: 'column',
                 alignItems: 'center', gap: 32,
+                zIndex: 2,
               }}
             >
               <Wreath size={100} showLeaves={showWreath} />
-              <div style={{ textAlign: 'center', pointerEvents: 'none' }}>
+
+              {/* Text fades up after the leaves have started swinging in */}
+              <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: showText ? 1 : 0, y: showText ? 0 : 12 }}
+                transition={{ duration: 0.5, ease: [0.25, 0.1, 0.25, 1], delay: showText ? 0.2 : 0 }}
+                style={{ textAlign: 'center', pointerEvents: 'none' }}
+              >
                 <p style={{
                   fontFamily: 'GreedStandard', fontWeight: 420, fontSize: 22,
                   letterSpacing: -0.22, lineHeight: '24px', color: '#000409', margin: 0,
@@ -204,33 +209,27 @@ export default function SplashScreenV4() {
                   <span style={{ fontWeight: 420 }}>Olivia </span>
                   <span style={{ fontWeight: 300 }}>Stone</span>
                 </p>
-              </div>
+              </motion.div>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* ── Top row photo cards ──────────────────────────────────────── */}
-        {GRID_X.map((x, i) => (
+        {/* ── Top row photo cards — mount in phase 2, fly straight to grid ── */}
+        {showCards && GRID_X.map((x, i) => (
           <motion.div
             key={`top-${x}`}
             initial={{ x, y: H + 100, width: 410, height: 410, opacity: 0, borderRadius: 12 }}
-            animate={{
-              x,
-              y: isGrid ? CARD_Y_GRID : CARD_Y_ENTER,
-              width: 410, height: 410,
-              opacity: showCards ? 1 : 0,
-              borderRadius: 12,
-            }}
-            transition={{ ...SPRING, delay: showCards && !isGrid ? i * 0.1 : 0 }}
+            animate={{ x, y: CARD_Y_GRID, width: 410, height: 410, opacity: 1, borderRadius: 12 }}
+            transition={{ ...CARD_SPRING, delay: i * 0.09 }}
             style={{
               position: 'absolute', top: 0, left: 0,
               overflow: 'hidden',
               outline: '1px solid #e0e1e1',
-              willChange: 'transform, width, height',
+              willChange: 'transform',
             }}
           >
             <img src={TOP_IMGS[i]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            <CardOverlays show={isGrid} delay={i * 0.08} />
+            <CardOverlays show={showBottom} delay={i * 0.08} />
           </motion.div>
         ))}
 
@@ -241,10 +240,10 @@ export default function SplashScreenV4() {
               key="ui-shell"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              transition={{ duration: 0.25 }}
+              transition={{ duration: 0.2 }}
               style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
             >
-              {/* Header */}
+              {/* Header slides down from above */}
               <motion.div
                 initial={{ y: -64, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
@@ -280,7 +279,7 @@ export default function SplashScreenV4() {
                 </div>
               </motion.div>
 
-              {/* Bottom row */}
+              {/* Bottom row slides up */}
               {BOT_ITEMS.map(({ x, src, border }, i) => (
                 <motion.div
                   key={x}
