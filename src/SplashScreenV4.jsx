@@ -19,22 +19,22 @@ const IMG = {
 const W = 1280
 const H = 960
 
-// Phase 0: gray bg, avatar floats in                         hold 800ms
-// Phase 1: leaves spring open (bouncy), text fades up        hold 1400ms
-// Phase 2: cards fly from bottom to grid (no stop),
-//          intro simultaneously exits off the top            hold 1000ms
-// Phase 3: bg→white, header slides in, bottom row up        hold 800ms
+// Phase 0: white bg, avatar floats in                        hold 900ms
+// Phase 1: leaves spring open (one bounce), text fades up    hold 1600ms
+// Phase 2: cards rise slowly from bottom to grid,
+//          intro exits upward off-screen as if pushed        hold 1800ms
+// Phase 3: header slides in, bottom row up                   hold 800ms
 // Phase 4: toast (final)
-const PHASE_HOLD = [800, 1400, 1000, 800]
+const PHASE_HOLD = [900, 1600, 1800, 800]
 
 const SPRING = { type: 'spring', stiffness: 85, damping: 20, mass: 1 }
 const EASE   = { duration: 0.65, ease: [0.25, 0.1, 0.25, 1] }
 
-// Underdamped — leaves overshoot past 0° (outward) then spring back inward
-const LEAF_SPRING = { type: 'spring', stiffness: 180, damping: 7, mass: 1 }
+// Damping ratio ≈ 0.5 — one visible overshoot outward then settles naturally
+const LEAF_SPRING = { type: 'spring', stiffness: 200, damping: 14, mass: 1 }
 
-// Cards: slightly underdamped for a natural landing feel
-const CARD_SPRING = { type: 'spring', stiffness: 95, damping: 16, mass: 1 }
+// Heavy mass + low stiffness = slow, deliberate rise from off-screen bottom
+const CARD_SPRING = { type: 'spring', stiffness: 55, damping: 24, mass: 3 }
 
 const INTRO_W  = 342
 const INTRO_H  = 224
@@ -160,8 +160,7 @@ export default function SplashScreenV4() {
           position: 'relative',
           transform: `scale(${scale})`,
           transformOrigin: 'center center',
-          background: phase >= 3 ? '#ffffff' : '#f7f7f8',
-          transition: 'background 0.6s ease-in-out',
+          background: '#ffffff',
           flexShrink: 0,
         }}
       >
@@ -176,7 +175,7 @@ export default function SplashScreenV4() {
               exit={{
                 y: -380,
                 opacity: 0,
-                transition: { duration: 0.55, ease: [0.4, 0, 1, 1] },
+                transition: { duration: 1.0, ease: [0.4, 0, 1, 1], delay: 0.15 },
               }}
               transition={EASE}
               style={{
@@ -220,7 +219,7 @@ export default function SplashScreenV4() {
             key={`top-${x}`}
             initial={{ x, y: H + 100, width: 410, height: 410, opacity: 0, borderRadius: 12 }}
             animate={{ x, y: CARD_Y_GRID, width: 410, height: 410, opacity: 1, borderRadius: 12 }}
-            transition={{ ...CARD_SPRING, delay: i * 0.09 }}
+            transition={{ ...CARD_SPRING, delay: i * 0.13 }}
             style={{
               position: 'absolute', top: 0, left: 0,
               overflow: 'hidden',
@@ -249,8 +248,8 @@ export default function SplashScreenV4() {
                 animate={{ y: 0, opacity: 1 }}
                 transition={{ ...EASE, delay: 0.05 }}
                 style={{
-                  position: 'absolute', left: 24, top: 24,
-                  width: 1232, height: 48,
+                  position: 'absolute', left: 13, top: 24,
+                  width: 1254, height: 48,
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                   pointerEvents: 'auto',
                 }}
