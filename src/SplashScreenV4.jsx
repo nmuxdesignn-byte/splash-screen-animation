@@ -158,8 +158,9 @@ export default function SplashScreenV4() {
       scrollAccum.current = Math.max(0, Math.min(SCROLL_TOTAL, scrollAccum.current + delta))
       const t = scrollAccum.current / SCROLL_TOTAL
 
-      // One layer sliding on top of the other — tray moves, profile stays still
-      animate(trayY, Y_INTER - t * (Y_INTER - CARD_Y_TOP), FOLLOW)
+      // Grid rises, profile sinks — profile slides beneath the grid
+      animate(trayY,  Y_INTER - t * (Y_INTER - CARD_Y_TOP), FOLLOW)
+      animate(introY, INTRO_Y_TOP + t * 120, FOLLOW)
 
       if (scrollAccum.current >= SCROLL_TOTAL) setPhase(4)
     }
