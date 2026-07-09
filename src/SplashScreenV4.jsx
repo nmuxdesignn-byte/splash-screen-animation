@@ -158,12 +158,13 @@ export default function SplashScreenV4() {
       scrollAccum.current = Math.max(0, Math.min(SCROLL_TOTAL, scrollAccum.current + delta))
       const t = scrollAccum.current / SCROLL_TOTAL
 
-      // Primary driver: tray slides up and covers the profile (tray zIndex:1 is on top)
-      // Profile stays put — it goes "beneath" as the tray physically rises over it
+      // Grid rises to fill canvas — this is the primary visual driver
       animate(trayY, Y_INTER - t * (Y_INTER - CARD_Y_TOP), FOLLOW)
 
-      // Profile: no Y movement — just a subtle scale + late fade once tray covers it
-      animate(introSc, 1 - t * 0.05, FOLLOW)
+      // Profile shrinks dramatically as grid expands (matching the reference)
+      // Scale 1 → 0.32, drift upward 70px, fade once grid is mostly covering canvas
+      animate(introSc, 1 - t * 0.68, FOLLOW)
+      animate(introY,  INTRO_Y_TOP - t * 70, FOLLOW)
       animate(introOp, t < 0.55 ? 1 : Math.max(0, 1 - (t - 0.55) / 0.45), { duration: 0.3 })
 
       if (scrollAccum.current >= SCROLL_TOTAL) setPhase(4)
