@@ -1,5 +1,5 @@
-import { motion } from 'framer-motion'
-import { useState, useEffect } from 'react'
+import { motion, useMotionValue, animate } from 'framer-motion'
+import { useState, useEffect, useRef } from 'react'
 
 const IMG = {
   leftLeaf:      '/left-leaf.png',
@@ -19,36 +19,32 @@ const IMG = {
 const W = 1280
 const H = 960
 
-// Phase 0: avatar fades in at top               auto 900ms
-// Phase 1: name fades up + leaves breathe       auto 1000ms
-// Phase 2: tray rises to Y_INTER automatically  auto 1500ms
-//          — only first row visible, second row off-screen
-//          — profile stays near top (no nudge)
-// Phase 3: PAUSED                               scroll trigger
-// Phase 4: tray slides to final grid position   (final state)
-//          intro covered by opaque tray (no text through gaps)
-//          header + toast appear
+// Phase 0: avatar fades in centered          auto 900ms
+// Phase 1: name + leaves breathe             auto 1000ms
+// Phase 2: tray rises, profile moves to top  auto 1500ms
+// Phase 3: idle — scroll-driven transition
+//   scroll δ drives: profile sinks + tray rises (spring-smoothed, reversible)
+//   at 100% scroll: phase 4
+// Phase 4: finalize + header + toast
 const PHASE_HOLD = [900, 1000, 1500, null]
 
 const EASE        = { duration: 0.65, ease: [0.25, 0.1, 0.25, 1] }
-const SPRING      = { type: 'spring', stiffness: 85, damping: 20, mass: 1 }
-const TRAY_SPRING = { type: 'spring', stiffness: 55, damping: 22, mass: 2 }
+const SPRING      = { type: 'spring', stiffness: 85,  damping: 20, mass: 1 }
+const TRAY_SPRING = { type: 'spring', stiffness: 55,  damping: 22, mass: 2 }
+// Spring used for scroll-following — overdamped (ξ>1), no bounce, fast settle
+const FOLLOW      = { type: 'spring', stiffness: 260, damping: 36, mass: 0.5 }
 
-const INTRO_W  = 342
-const INTRO_H  = 224
-const INTRO_X  = (W - INTRO_W) / 2   // 469
-const INTRO_Y0 = (H - INTRO_H) / 2   // 368 — vertically centered (starting position)
-const INTRO_Y_TOP = 120               // where profile lands after being "pushed" up by tray
+const INTRO_W    = 342
+const INTRO_H    = 224
+const INTRO_X    = (W - INTRO_W) / 2   // 469
+const INTRO_Y0   = (H - INTRO_H) / 2   // 368 — vertically centered
+const INTRO_Y_TOP = 120                 // top resting position after tray rises
 
-// Y_INTER: tray top in the intermediate state (phase 2–3).
-// At y=548: first row at canvas y=548 (fully visible),
-// second row at y=970 (off-screen — canvas is 960px tall).
-const Y_INTER    = 548
-const CARD_Y_TOP = 112   // first row final position
-const CARD_Y_BOT = 534   // second row final position
+const Y_INTER    = 548   // tray top at intermediate state (only first row visible)
+const CARD_Y_TOP = 112   // first row final grid position
+const CARD_Y_BOT = 534   // second row final grid position
 const GRID_X     = [13, 435, 857]
 
-// Cards positioned relative to tray top (top = card.y - CARD_Y_TOP)
 const ALL_CARDS = [
   { x: GRID_X[0], y: CARD_Y_TOP, src: IMG.photoLeft,     border: true  },
   { x: GRID_X[1], y: CARD_Y_TOP, src: IMG.photoMid,      border: true  },
@@ -57,6 +53,9 @@ const ALL_CARDS = [
   { x: GRID_X[1], y: CARD_Y_BOT, src: IMG.photoBotMid,   border: true  },
   { x: GRID_X[2], y: CARD_Y_BOT, src: IMG.photoBotRight, border: true  },
 ]
+
+// Total scroll distance (in wheel deltaY px) to complete the transition
+const SCROLL_TOTAL = 500
 
 // ── Leaf wreath ────────────────────────────────────────────────────────────────
 function Wreath({ size = 80, breathe = false }) {
@@ -109,6 +108,16 @@ export default function SplashScreenV4() {
   const [phase, setPhase] = useState(0)
   const [scale, setScale] = useState(1)
 
+  // All visual properties driven by motion values — no animate prop on the intro/tray.
+  // This lets scroll imperatively update them without triggering React re-renders.
+  const introY  = useMotionValue(INTRO_Y0 + 24)  // starts slightly below center
+  const introOp = useMotionValue(0)               // starts invisible
+  const introSc = useMotionValue(0.96)
+  const trayY   = useMotionValue(H)               // tray starts off canvas bottom
+
+  const scrollAccum = useRef(0)  // accumulated scroll (no re-render needed)
+
+  // Viewport scale
   useEffect(() => {
     const resize = () => setScale(Math.min(window.innerWidth / W, window.innerHeight / H))
     resize()
@@ -116,6 +125,7 @@ export default function SplashScreenV4() {
     return () => window.removeEventListener('resize', resize)
   }, [])
 
+  // Phase auto-advance timer (null = skip = scroll-driven phase 3)
   useEffect(() => {
     const hold = PHASE_HOLD[phase]
     if (hold == null) return
@@ -123,17 +133,53 @@ export default function SplashScreenV4() {
     return () => clearTimeout(t)
   }, [phase])
 
-  // Phase 3 waits for scroll → phase 4
+  // Phase 0 entry: intro fades in at center (fires once on mount)
+  useEffect(() => {
+    animate(introY,  INTRO_Y0, EASE)
+    animate(introOp, 1, { duration: 0.5, ease: 'easeOut' })
+    animate(introSc, 1, EASE)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Phase 2: tray rises automatically, profile moves to top
+  useEffect(() => {
+    if (phase !== 2) return
+    animate(introY, INTRO_Y_TOP, TRAY_SPRING)
+    animate(trayY,  Y_INTER,     TRAY_SPRING)
+  }, [phase]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Phase 3: scroll-driven — profile sinks + tray rises proportionally
   useEffect(() => {
     if (phase !== 3) return
-    const advance = () => setPhase(4)
-    window.addEventListener('wheel',     advance, { once: true, passive: true })
-    window.addEventListener('touchmove', advance, { once: true, passive: true })
-    return () => {
-      window.removeEventListener('wheel',     advance)
-      window.removeEventListener('touchmove', advance)
+    scrollAccum.current = 0
+
+    const onWheel = (e) => {
+      // Cap per-event delta so fast mouse wheels don't jump (trackpad: ~5px, wheel: ~120px)
+      const delta = Math.sign(e.deltaY) * Math.min(Math.abs(e.deltaY), 80)
+      scrollAccum.current = Math.max(0, Math.min(SCROLL_TOTAL, scrollAccum.current + delta))
+      const t = scrollAccum.current / SCROLL_TOTAL
+
+      // Spring-follow: each call cancels the previous and re-targets.
+      // FOLLOW spring is overdamped → no bounce, just smooth deceleration.
+      animate(introY,  INTRO_Y_TOP + t * (H + 80 - INTRO_Y_TOP), FOLLOW)
+      animate(introSc, 1 - t * 0.08, FOLLOW)
+      // Opacity stays full until 40% then fades — profile "dissolves" late in scroll
+      animate(introOp, t < 0.4 ? 1 : Math.max(0, 1 - (t - 0.4) / 0.6), { duration: 0.2 })
+      animate(trayY,   Y_INTER - t * (Y_INTER - CARD_Y_TOP), FOLLOW)
+
+      if (scrollAccum.current >= SCROLL_TOTAL) setPhase(4)
     }
-  }, [phase])
+
+    window.addEventListener('wheel', onWheel, { passive: true })
+    return () => window.removeEventListener('wheel', onWheel)
+  }, [phase]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Phase 4: snap final positions and reveal header/toast
+  useEffect(() => {
+    if (phase !== 4) return
+    animate(trayY,  CARD_Y_TOP, TRAY_SPRING)   // settle tray if spring not done
+    animate(introOp, 0, { duration: 0.15 })     // ensure opacity gone
+    introY.set(H + 100)                         // instantly off-screen (already invisible)
+  }, [phase]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const breathe      = phase === 1
   const showText     = phase >= 1
@@ -141,22 +187,6 @@ export default function SplashScreenV4() {
   const showHeader   = phase >= 4
   const showToast    = phase >= 4
   const showOverlays = phase >= 4
-
-  // Profile: starts centered → rises to top as tray comes up → sinks on scroll
-  const introY = phase >= 4
-    ? H + 50          // sinks off-screen beneath the rising tray
-    : phase >= 2
-      ? INTRO_Y_TOP   // pushed to top when tray rises (phase 2–3)
-      : INTRO_Y0      // centered (phase 0–1)
-
-  const introTr = phase >= 4
-    ? { duration: 0.65, ease: [0.4, 0, 0.85, 1] }  // smooth ease-in sink
-    : phase >= 2
-      ? TRAY_SPRING   // synced with tray rise
-      : EASE          // initial entry
-
-  // Tray target: intermediate position until scroll, then final grid position
-  const trayTargetY = phase >= 4 ? CARD_Y_TOP : Y_INTER
 
   return (
     <div style={{
@@ -174,17 +204,14 @@ export default function SplashScreenV4() {
         overflow: 'hidden',
       }}>
 
-        {/* ── Intro — stays in DOM, tray covers it in phase 4 ─────────────── */}
-        {/* No zIndex — sits below tray (zIndex:1) naturally */}
+        {/* ── Intro — fully motion-value driven, no animate prop ──────────── */}
         <motion.div
-          initial={{ y: INTRO_Y0 + 24, opacity: 0, scale: 0.96 }}
-          animate={{ y: introY, scale: 1, opacity: 1 }}
-          transition={introTr}
           style={{
             position: 'absolute', top: 0, left: INTRO_X,
             width: INTRO_W,
             display: 'flex', flexDirection: 'column',
             alignItems: 'center', gap: 32,
+            y: introY, opacity: introOp, scale: introSc,
           }}
         >
           <Wreath size={100} breathe={breathe} />
@@ -211,20 +238,15 @@ export default function SplashScreenV4() {
           </motion.div>
         </motion.div>
 
-        {/* ── Tray — single white layer containing both rows ──────────────── */}
-        {/* Solid white background prevents any intro text from showing       */}
-        {/* through card gutters. Slides from H → Y_INTER → CARD_Y_TOP.      */}
+        {/* ── Tray — white layer, motion-value driven ─────────────────────── */}
         {showTray && (
           <motion.div
-            initial={{ y: H }}
-            animate={{ y: trayTargetY }}
-            transition={TRAY_SPRING}
             style={{
               position: 'absolute', top: 0, left: 0,
-              width: W,
-              height: H + 500,   // extends well below canvas
+              width: W, height: H + 500,
               background: '#ffffff',
               zIndex: 1,
+              y: trayY,
             }}
           >
             {ALL_CARDS.map((card, i) => (
@@ -232,7 +254,7 @@ export default function SplashScreenV4() {
                 key={i}
                 style={{
                   position: 'absolute',
-                  top:  card.y - CARD_Y_TOP,  // relative to tray top
+                  top:  card.y - CARD_Y_TOP,
                   left: card.x,
                   width: 410, height: 410,
                   borderRadius: 12,
@@ -242,7 +264,6 @@ export default function SplashScreenV4() {
               >
                 <img src={card.src} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
 
-                {/* Overlays appear after final position is reached */}
                 {card.border && showOverlays && (
                   <>
                     <motion.div
@@ -270,7 +291,7 @@ export default function SplashScreenV4() {
           </motion.div>
         )}
 
-        {/* ── Header — slides in as tray reaches final position ───────────── */}
+        {/* ── Header ──────────────────────────────────────────────────────── */}
         {showHeader && (
           <motion.div
             initial={{ y: -56, opacity: 0 }}
