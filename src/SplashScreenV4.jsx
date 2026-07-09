@@ -19,17 +19,19 @@ const IMG = {
 const W = 1280
 const H = 960
 
-// Phase 0: avatar fades in centered               auto 900ms
-// Phase 1: name fades up + leaves breathe         auto 1000ms
-// Phase 2: PAUSED — scroll hint                   null (scroll trigger)
-// Phase 3: all 6 images rise as one tray (final)
-//          intro sinks & fades below tray
-//          header slides in after tray lands
-const PHASE_HOLD = [900, 1000, null]
+// Phase 0: avatar fades in centered                        auto 900ms
+// Phase 1: name fades up + leaves breathe                  auto 1000ms
+// Phase 2: grid tray rises automatically, intro nudges     auto 1500ms
+//          up + shrinks slightly (pushed by rising grid)
+// Phase 3: PAUSED — grid settled, scroll hint shows        scroll trigger
+// Phase 4: intro sinks beneath grid (no fade, just covered)
+//          header slides in from top, toast appears
+const PHASE_HOLD = [900, 1000, 1500, null]
 
-const EASE = { duration: 0.65, ease: [0.25, 0.1, 0.25, 1] }
+const EASE   = { duration: 0.65, ease: [0.25, 0.1, 0.25, 1] }
+const SPRING = { type: 'spring', stiffness: 85, damping: 20, mass: 1 }
 
-// Overdamped spring (ξ ≈ 1.05) — smooth landing, zero bounce
+// Overdamped (ξ ≈ 1.05) — smooth landing, no bounce, used for both tray and intro nudge
 const TRAY_SPRING = { type: 'spring', stiffness: 55, damping: 22, mass: 2 }
 
 const INTRO_W  = 342
@@ -37,13 +39,16 @@ const INTRO_H  = 224
 const INTRO_X  = (W - INTRO_W) / 2   // 469
 const INTRO_Y0 = (H - INTRO_H) / 2   // 368
 
+// Nudge: grid rising "pushes" the intro up slightly and shrinks it
+const INTRO_Y_NUDGE  = INTRO_Y0 - 38   // 330 — up 38px
+const INTRO_SC_NUDGE = 0.91             // shrink ~9%
+
 const CARD_Y_TOP = 112
 const CARD_Y_BOT = 534
 const GRID_X = [13, 435, 857]
 
-// All 6 cards in one array. Each card's initialY offsets by its final row
-// so every card travels exactly (H - CARD_Y_TOP) = 848px — identical spring
-// path = perfectly unified tray rising from below.
+// All 6 cards. initY offset = H + (finalY - CARD_Y_TOP) so every card
+// travels exactly 848px — identical spring path = one unified tray.
 const ALL_CARDS = [
   { x: GRID_X[0], y: CARD_Y_TOP, src: IMG.photoLeft,     border: true  },
   { x: GRID_X[1], y: CARD_Y_TOP, src: IMG.photoMid,      border: true  },
@@ -122,9 +127,10 @@ export default function SplashScreenV4() {
     return () => clearTimeout(t)
   }, [phase])
 
+  // Phase 3 waits for scroll — triggers phase 4
   useEffect(() => {
-    if (phase !== 2) return
-    const advance = () => setPhase(3)
+    if (phase !== 3) return
+    const advance = () => setPhase(4)
     window.addEventListener('wheel',     advance, { once: true, passive: true })
     window.addEventListener('touchmove', advance, { once: true, passive: true })
     return () => {
@@ -135,9 +141,15 @@ export default function SplashScreenV4() {
 
   const breathe        = phase === 1
   const showText       = phase >= 1
-  const showIntro      = phase <= 2
-  const showTray       = phase >= 3
-  const showScrollHint = phase === 2
+  const showIntro      = phase <= 3   // unmounts at phase 4 → exit runs
+  const showGrid       = phase >= 2   // rises automatically after leaves
+  const showScrollHint = phase === 3
+  const showHeader     = phase >= 4
+  const showToast      = phase >= 4
+
+  // Intro nudges up + shrinks when grid rises (phase 2+)
+  const introY     = phase >= 2 ? INTRO_Y_NUDGE : INTRO_Y0
+  const introScale = phase >= 2 ? INTRO_SC_NUDGE : 1
 
   return (
     <div style={{
@@ -156,19 +168,21 @@ export default function SplashScreenV4() {
       }}>
 
         {/* ── Intro: avatar + wreath + name ──────────────────────────────── */}
-        {/* Rendered first in DOM — tray cards render after and sit on top */}
+        {/* Rendered first — grid cards render after and naturally sit on top */}
         <AnimatePresence>
           {showIntro && (
             <motion.div
               key="intro"
               initial={{ x: INTRO_X, y: INTRO_Y0 + 24, opacity: 0, scale: 0.96 }}
-              animate={{ x: INTRO_X, y: INTRO_Y0, opacity: 1, scale: 1 }}
+              animate={{ x: INTRO_X, y: introY, scale: introScale, opacity: 1 }}
               exit={{
-                y: INTRO_Y0 + 72,
-                opacity: 0,
-                transition: { duration: 0.55, ease: [0.4, 0, 0.85, 1] },
+                // Sinks DOWN beneath the grid — no opacity fade, just positional
+                y: H + 40,
+                scale: INTRO_SC_NUDGE,
+                opacity: 1,
+                transition: { duration: 0.7, ease: [0.3, 0, 0.8, 1] },
               }}
-              transition={EASE}
+              transition={phase >= 2 ? TRAY_SPRING : EASE}
               style={{
                 position: 'absolute', top: 0, left: 0,
                 width: INTRO_W,
@@ -202,7 +216,7 @@ export default function SplashScreenV4() {
           )}
         </AnimatePresence>
 
-        {/* ── Scroll hint ─────────────────────────────────────────────────── */}
+        {/* ── Scroll hint — visible while waiting in phase 3 ──────────────── */}
         <AnimatePresence>
           {showScrollHint && (
             <motion.div
@@ -232,10 +246,10 @@ export default function SplashScreenV4() {
           )}
         </AnimatePresence>
 
-        {/* ── Tray: all 6 cards rise as one unified layer ─────────────────── */}
-        {/* Each card's initY = H + (finalY - CARD_Y_TOP) so every card       */}
-        {/* travels 848px regardless of row — same spring = perfect sync.     */}
-        {showTray && ALL_CARDS.map((card, i) => {
+        {/* ── Grid tray — rises automatically at phase 2 ──────────────────── */}
+        {/* Each card's initY keeps every card traveling 848px — same spring,  */}
+        {/* same distance — so all 6 move as one unified tray.                */}
+        {showGrid && ALL_CARDS.map((card, i) => {
           const initY = H + (card.y - CARD_Y_TOP)
           return (
             <motion.div
@@ -257,7 +271,7 @@ export default function SplashScreenV4() {
                   <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 0.7 }}
-                    transition={{ duration: 0.5, ease: 'easeOut', delay: 0.85 }}
+                    transition={{ duration: 0.5, ease: 'easeOut', delay: 0.9 }}
                     style={{
                       position: 'absolute', inset: 0,
                       backgroundImage: `url(${IMG.watermark})`,
@@ -267,7 +281,7 @@ export default function SplashScreenV4() {
                   <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    transition={{ duration: 0.4, ease: 'easeOut', delay: 0.95 }}
+                    transition={{ duration: 0.4, ease: 'easeOut', delay: 1.0 }}
                     style={{ position: 'absolute', top: 12, right: 12, width: 24, height: 24, borderRadius: 4, overflow: 'hidden' }}
                   >
                     <img src={IMG.heart} alt="" style={{ width: '100%', height: '100%' }} />
@@ -278,12 +292,12 @@ export default function SplashScreenV4() {
           )
         })}
 
-        {/* ── Header — slides in after tray lands ─────────────────────────── */}
-        {showTray && (
+        {/* ── Header — slides in as intro sinks beneath grid ──────────────── */}
+        {showHeader && (
           <motion.div
             initial={{ y: -56, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            transition={{ ...EASE, delay: 1.05 }}
+            transition={{ ...EASE, delay: 0.25 }}
             style={{
               position: 'absolute', left: 13, top: 24,
               width: 1254, height: 48,
@@ -316,12 +330,12 @@ export default function SplashScreenV4() {
           </motion.div>
         )}
 
-        {/* ── Toast — appears after header settles ────────────────────────── */}
-        {showTray && (
+        {/* ── Toast ───────────────────────────────────────────────────────── */}
+        {showToast && (
           <motion.div
             initial={{ y: 48, opacity: 0, x: '-50%' }}
             animate={{ y: 0, opacity: 1, x: '-50%' }}
-            transition={{ type: 'spring', stiffness: 80, damping: 20, mass: 1, delay: 1.5 }}
+            transition={{ ...SPRING, delay: 0.9 }}
             style={{
               position: 'absolute', left: '50%', bottom: 16,
               width: 356, height: 48,
