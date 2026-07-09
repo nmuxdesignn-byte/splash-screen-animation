@@ -158,13 +158,13 @@ export default function SplashScreenV4() {
       scrollAccum.current = Math.max(0, Math.min(SCROLL_TOTAL, scrollAccum.current + delta))
       const t = scrollAccum.current / SCROLL_TOTAL
 
-      // Spring-follow: each call cancels the previous and re-targets.
-      // FOLLOW spring is overdamped → no bounce, just smooth deceleration.
-      animate(introY,  INTRO_Y_TOP + t * (H + 80 - INTRO_Y_TOP), FOLLOW)
-      animate(introSc, 1 - t * 0.08, FOLLOW)
-      // Opacity stays full until 40% then fades — profile "dissolves" late in scroll
-      animate(introOp, t < 0.4 ? 1 : Math.max(0, 1 - (t - 0.4) / 0.6), { duration: 0.2 })
-      animate(trayY,   Y_INTER - t * (Y_INTER - CARD_Y_TOP), FOLLOW)
+      // Primary driver: tray slides up and covers the profile (tray zIndex:1 is on top)
+      // Profile stays put — it goes "beneath" as the tray physically rises over it
+      animate(trayY, Y_INTER - t * (Y_INTER - CARD_Y_TOP), FOLLOW)
+
+      // Profile: no Y movement — just a subtle scale + late fade once tray covers it
+      animate(introSc, 1 - t * 0.05, FOLLOW)
+      animate(introOp, t < 0.55 ? 1 : Math.max(0, 1 - (t - 0.55) / 0.45), { duration: 0.3 })
 
       if (scrollAccum.current >= SCROLL_TOTAL) setPhase(4)
     }
