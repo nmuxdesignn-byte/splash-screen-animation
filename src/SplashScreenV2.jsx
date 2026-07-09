@@ -2,8 +2,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useState, useEffect } from 'react'
 
 const IMG = {
-  leftLeaf:     '/left_leaf.jpg',
-  rightLeaf:    '/right_leaf.jpg',
+  leftLeaf:     '/left-leaf.png',
+  rightLeaf:    '/right-leaf.png',
   avatar:       '/p6.png',
   photoLeft:    '/p1.png',
   photoMid:     '/p2.png',

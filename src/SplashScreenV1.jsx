@@ -2,7 +2,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useState, useEffect } from 'react'
 
 const IMG = {
-  clover:       '/leaf.png',
+  leftLeaf:     '/left-leaf.png',
+  rightLeaf:    '/right-leaf.png',
   avatar:       '/p6.png',
   photoRightLg: '/p1.png',
   photoLeft:    '/p1.png',
@@ -11,9 +12,9 @@ const IMG = {
   photoBotMid:  '/p4.png',
   photoBotRight:'/p5.png',
   promoCard:    '/banner.png',
-  favIcon:      '/fav-icon.png',
+  favIcon:      '/heart-filled.svg',
   watermark:    '/watermark.png',
-  heart:        '/heart.png',
+  heart:        '/heart.svg',
 }
 
 const W = 1280
@@ -70,7 +71,7 @@ function Wreath({ size = 80, showLeaves = false }) {
         transition={LEAF_SPRING}
       >
         <div style={{ position: 'absolute', left: 0, top: 0, width: iW, height: iH }}>
-          <img src={IMG.clover} alt="" style={{ width: '100%', height: '100%' }} />
+          <img src={IMG.leftLeaf} alt="" style={{ width: '100%', height: '100%' }} />
         </div>
       </motion.div>
 
@@ -88,19 +89,14 @@ function Wreath({ size = 80, showLeaves = false }) {
       <motion.div
         style={{
           position: 'absolute', left: 106 * s, top: 0, width: cW, height: cH,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
           transformOrigin: 'left center',
         }}
         initial={{ rotate: 38, opacity: 0 }}
         animate={showLeaves ? { rotate: 0, opacity: 1 } : { rotate: 38, opacity: 0 }}
         transition={{ ...LEAF_SPRING, delay: showLeaves ? 0.04 : 0 }}
       >
-        <div style={{ transform: 'scaleY(-1) rotate(180deg)' }}>
-          <div style={{ position: 'relative', width: cW, height: cH }}>
-            <div style={{ position: 'absolute', left: 0, top: 0, width: iW, height: iH }}>
-              <img src={IMG.clover} alt="" style={{ width: '100%', height: '100%' }} />
-            </div>
-          </div>
+        <div style={{ position: 'absolute', left: 0, top: 0, width: iW, height: iH }}>
+          <img src={IMG.rightLeaf} alt="" style={{ width: '100%', height: '100%' }} />
         </div>
       </motion.div>
     </div>

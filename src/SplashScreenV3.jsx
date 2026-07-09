@@ -3,7 +3,8 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { ImageGeneration } from 'img-fx'
 
 const IMG = {
-  clover:       '/leaf.png',
+  leftLeaf:     '/left-leaf.png',
+  rightLeaf:    '/right-leaf.png',
   avatar:       '/p6.png',
   photoLeft:    '/p1.png',
   photoMid:     '/p2.png',
@@ -11,9 +12,9 @@ const IMG = {
   photoBotMid:  '/p4.png',
   photoBotRight:'/p5.png',
   promoCard:    '/banner.png',
-  favIcon:      '/fav-icon.png',
+  favIcon:      '/heart-filled.svg',
   watermark:    '/watermark.png',
-  heart:        '/heart.png',
+  heart:        '/heart.svg',
 }
 
 const W = 1280
