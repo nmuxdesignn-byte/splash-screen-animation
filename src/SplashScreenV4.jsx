@@ -1,4 +1,4 @@
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion } from 'framer-motion'
 import { useState, useEffect } from 'react'
 
 const IMG = {
@@ -19,14 +19,14 @@ const IMG = {
 const W = 1280
 const H = 960
 
-// Phase 0: avatar fades in centered             auto 900ms
+// Phase 0: avatar fades in at top               auto 900ms
 // Phase 1: name fades up + leaves breathe       auto 1000ms
 // Phase 2: tray rises to Y_INTER automatically  auto 1500ms
 //          — only first row visible, second row off-screen
-//          — intro nudges up + shrinks (pushed by rising tray)
-// Phase 3: PAUSED — scroll hint shows           scroll trigger
+//          — profile stays near top (no nudge)
+// Phase 3: PAUSED                               scroll trigger
 // Phase 4: tray slides to final grid position   (final state)
-//          intro is covered by opaque tray (no text through gaps)
+//          intro covered by opaque tray (no text through gaps)
 //          header + toast appear
 const PHASE_HOLD = [900, 1000, 1500, null]
 
@@ -37,16 +37,12 @@ const TRAY_SPRING = { type: 'spring', stiffness: 55, damping: 22, mass: 2 }
 const INTRO_W  = 342
 const INTRO_H  = 224
 const INTRO_X  = (W - INTRO_W) / 2   // 469
-const INTRO_Y0 = (H - INTRO_H) / 2   // 368
-
-// After nudge: profile moves up slightly when tray rises
-const INTRO_Y_NUDGE  = 300
-const INTRO_SC_NUDGE = 0.92
+const INTRO_Y0 = 120                  // ~120px padding from top
 
 // Y_INTER: tray top in the intermediate state (phase 2–3).
-// At y=542: first row lands at canvas y=542 (fully visible),
-// second row at y=964 (off-screen — canvas is 960px tall).
-const Y_INTER    = 542
+// At y=548: first row at canvas y=548 (fully visible, 2px above bottom),
+// second row at y=970 (off-screen — canvas is 960px tall).
+const Y_INTER    = 548
 const CARD_Y_TOP = 112   // first row final position
 const CARD_Y_BOT = 534   // second row final position
 const GRID_X     = [13, 435, 857]
@@ -138,18 +134,12 @@ export default function SplashScreenV4() {
     }
   }, [phase])
 
-  const breathe        = phase === 1
-  const showText       = phase >= 1
-  const showTray       = phase >= 2
-  const showScrollHint = phase === 3
-  const showHeader     = phase >= 4
-  const showToast      = phase >= 4
-  const showOverlays   = phase >= 4   // watermark + heart appear after final settle
-
-  // Intro nudges up slightly when tray rises (phase 2+)
-  const introY   = phase >= 2 ? INTRO_Y_NUDGE : INTRO_Y0
-  const introSc  = phase >= 2 ? INTRO_SC_NUDGE : 1
-  const introTr  = phase >= 2 ? TRAY_SPRING : EASE
+  const breathe      = phase === 1
+  const showText     = phase >= 1
+  const showTray     = phase >= 2
+  const showHeader   = phase >= 4
+  const showToast    = phase >= 4
+  const showOverlays = phase >= 4   // watermark + heart appear after final settle
 
   // Tray target: intermediate position until scroll, then final grid position
   const trayTargetY = phase >= 4 ? CARD_Y_TOP : Y_INTER
@@ -173,9 +163,9 @@ export default function SplashScreenV4() {
         {/* ── Intro — stays in DOM, tray covers it in phase 4 ─────────────── */}
         {/* No zIndex — sits below tray (zIndex:1) naturally */}
         <motion.div
-          initial={{ y: INTRO_Y0 + 24, opacity: 0, scale: 0.96 }}
-          animate={{ y: introY, scale: introSc, opacity: 1 }}
-          transition={introTr}
+          initial={{ y: INTRO_Y0 + 20, opacity: 0, scale: 0.96 }}
+          animate={{ y: INTRO_Y0, scale: 1, opacity: 1 }}
+          transition={EASE}
           style={{
             position: 'absolute', top: 0, left: INTRO_X,
             width: INTRO_W,
@@ -265,37 +255,6 @@ export default function SplashScreenV4() {
             ))}
           </motion.div>
         )}
-
-        {/* ── Scroll hint — floats above tray in phase 3 ──────────────────── */}
-        <AnimatePresence>
-          {showScrollHint && (
-            <motion.div
-              key="scroll-hint"
-              initial={{ opacity: 0, y: -6 }}
-              animate={{ opacity: 0.45, y: 0 }}
-              exit={{ opacity: 0, transition: { duration: 0.18 } }}
-              transition={{ duration: 0.5, delay: 0.4 }}
-              style={{
-                position: 'absolute', left: '50%', bottom: 32,
-                transform: 'translateX(-50%)',
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-                pointerEvents: 'none',
-                zIndex: 2,
-              }}
-            >
-              <span style={{ fontFamily: 'GreedStandard', fontSize: 13, color: '#000409', letterSpacing: -0.1 }}>
-                scroll
-              </span>
-              <motion.div
-                animate={{ y: [0, 5, 0] }}
-                transition={{ duration: 1.3, repeat: Infinity, ease: 'easeInOut' }}
-                style={{ fontSize: 14, color: '#000409', lineHeight: 1 }}
-              >
-                ↓
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
 
         {/* ── Header — slides in as tray reaches final position ───────────── */}
         {showHeader && (
