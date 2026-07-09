@@ -2,7 +2,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useState, useEffect } from 'react'
 
 const IMG = {
-  clover:        'https://www.figma.com/api/mcp/asset/2dd4e729-aebd-44a0-a660-6607c66fcca1',
+  clover:        '/leaf.png',
   avatar:        '/p6.png',
   photoLeft:     '/p1.png',
   photoMid:      '/p2.png',
@@ -10,9 +10,9 @@ const IMG = {
   photoBotMid:   '/p4.png',
   photoBotRight: '/p5.png',
   promoCard:     '/banner.png',
-  heart:         'https://www.figma.com/api/mcp/asset/b417c120-f7be-4718-a8a3-e2a66cbdef6d',
-  watermark:     'https://www.figma.com/api/mcp/asset/e65ec655-96a0-4d56-bd37-8909d54e9878',
-  favIcon:       'https://www.figma.com/api/mcp/asset/42fded6c-21c7-4cab-9772-453aa93c590e',
+  heart:         '/heart.png',
+  watermark:     '/watermark.png',
+  favIcon:       '/fav-icon.png',
 }
 
 const W = 1280
