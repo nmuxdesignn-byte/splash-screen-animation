@@ -19,35 +19,41 @@ const IMG = {
 const W = 1280
 const H = 960
 
-// Phase 0: avatar fades in centered (white bg)        auto 900ms
-// Phase 1: name fades up + leaves breathe             auto 1000ms
-// Phase 2: PAUSED — waits for user scroll
-// Phase 3: 3 images rise from below, landing on top   auto 900ms
-//          profile/name sinks + fades downward
-//          header slides in from top
-// Phase 4: bottom row slides up + toast (final)
-const PHASE_HOLD = [900, 1000, null, 900]
+// Phase 0: avatar fades in centered               auto 900ms
+// Phase 1: name fades up + leaves breathe         auto 1000ms
+// Phase 2: PAUSED — scroll hint                   null (scroll trigger)
+// Phase 3: all 6 images rise as one tray (final)
+//          intro sinks & fades below tray
+//          header slides in after tray lands
+const PHASE_HOLD = [900, 1000, null]
 
-const SPRING      = { type: 'spring', stiffness: 85,  damping: 20, mass: 1 }
-const EASE        = { duration: 0.65, ease: [0.25, 0.1, 0.25, 1] }
-const CARD_SPRING = { type: 'spring', stiffness: 65,  damping: 22, mass: 2.5 }
+const EASE = { duration: 0.65, ease: [0.25, 0.1, 0.25, 1] }
+
+// Overdamped spring (ξ ≈ 1.05) — smooth landing, zero bounce
+const TRAY_SPRING = { type: 'spring', stiffness: 55, damping: 22, mass: 2 }
 
 const INTRO_W  = 342
 const INTRO_H  = 224
 const INTRO_X  = (W - INTRO_W) / 2   // 469
 const INTRO_Y0 = (H - INTRO_H) / 2   // 368
 
-const CARD_Y_GRID = 112
-const BOT_Y_GRID  = 534
-const GRID_X      = [13, 435, 857]
-const TOP_IMGS    = [IMG.photoLeft, IMG.photoMid, IMG.photoRight]
-const BOT_ITEMS   = [
-  { x: 13,  src: IMG.promoCard,     border: false },
-  { x: 435, src: IMG.photoBotMid,   border: true  },
-  { x: 857, src: IMG.photoBotRight, border: true  },
+const CARD_Y_TOP = 112
+const CARD_Y_BOT = 534
+const GRID_X = [13, 435, 857]
+
+// All 6 cards in one array. Each card's initialY offsets by its final row
+// so every card travels exactly (H - CARD_Y_TOP) = 848px — identical spring
+// path = perfectly unified tray rising from below.
+const ALL_CARDS = [
+  { x: GRID_X[0], y: CARD_Y_TOP, src: IMG.photoLeft,     border: true  },
+  { x: GRID_X[1], y: CARD_Y_TOP, src: IMG.photoMid,      border: true  },
+  { x: GRID_X[2], y: CARD_Y_TOP, src: IMG.photoRight,    border: true  },
+  { x: GRID_X[0], y: CARD_Y_BOT, src: IMG.promoCard,     border: false },
+  { x: GRID_X[1], y: CARD_Y_BOT, src: IMG.photoBotMid,   border: true  },
+  { x: GRID_X[2], y: CARD_Y_BOT, src: IMG.photoBotRight, border: true  },
 ]
 
-// ── Leaf wreath ───────────────────────────────────────────────────────────────
+// ── Leaf wreath ────────────────────────────────────────────────────────────────
 function Wreath({ size = 80, breathe = false }) {
   const s      = size / 80
   const cW     = 46 * s,     cH = 81.778 * s
@@ -97,7 +103,7 @@ function Wreath({ size = 80, breathe = false }) {
   )
 }
 
-// ── Main ──────────────────────────────────────────────────────────────────────
+// ── Main ───────────────────────────────────────────────────────────────────────
 export default function SplashScreenV4() {
   const [phase, setPhase] = useState(0)
   const [scale, setScale] = useState(1)
@@ -109,7 +115,6 @@ export default function SplashScreenV4() {
     return () => window.removeEventListener('resize', resize)
   }, [])
 
-  // Auto-advance phases with a timer (skips phase 2 which has null hold)
   useEffect(() => {
     const hold = PHASE_HOLD[phase]
     if (hold == null) return
@@ -117,7 +122,6 @@ export default function SplashScreenV4() {
     return () => clearTimeout(t)
   }, [phase])
 
-  // Phase 2 waits for scroll — any wheel or touch triggers phase 3
   useEffect(() => {
     if (phase !== 2) return
     const advance = () => setPhase(3)
@@ -131,11 +135,8 @@ export default function SplashScreenV4() {
 
   const breathe        = phase === 1
   const showText       = phase >= 1
-  const showIntro      = phase <= 2   // exits phase 3: sinks + fades down
-  const showTopCards   = phase >= 3
-  const showHeader     = phase >= 3
-  const showBotRow     = phase >= 4
-  const showToast      = phase >= 4
+  const showIntro      = phase <= 2
+  const showTray       = phase >= 3
   const showScrollHint = phase === 2
 
   return (
@@ -154,18 +155,18 @@ export default function SplashScreenV4() {
         overflow: 'hidden',
       }}>
 
-        {/* ── Intro: avatar + wreath + name ─────────────────────── */}
-        {/* No zIndex set — cards render after in DOM and sit on top */}
+        {/* ── Intro: avatar + wreath + name ──────────────────────────────── */}
+        {/* Rendered first in DOM — tray cards render after and sit on top */}
         <AnimatePresence>
           {showIntro && (
             <motion.div
               key="intro"
-              initial={{ x: INTRO_X, y: INTRO_Y0 + 24, opacity: 0, scale: 0.95 }}
+              initial={{ x: INTRO_X, y: INTRO_Y0 + 24, opacity: 0, scale: 0.96 }}
               animate={{ x: INTRO_X, y: INTRO_Y0, opacity: 1, scale: 1 }}
               exit={{
-                y: INTRO_Y0 + 80,
+                y: INTRO_Y0 + 72,
                 opacity: 0,
-                transition: { duration: 0.6, ease: [0.4, 0, 1, 1] },
+                transition: { duration: 0.55, ease: [0.4, 0, 0.85, 1] },
               }}
               transition={EASE}
               style={{
@@ -201,14 +202,14 @@ export default function SplashScreenV4() {
           )}
         </AnimatePresence>
 
-        {/* ── Scroll hint — visible only while waiting in phase 2 ── */}
+        {/* ── Scroll hint ─────────────────────────────────────────────────── */}
         <AnimatePresence>
           {showScrollHint && (
             <motion.div
               key="scroll-hint"
               initial={{ opacity: 0, y: -6 }}
-              animate={{ opacity: 0.35, y: 0 }}
-              exit={{ opacity: 0, transition: { duration: 0.2 } }}
+              animate={{ opacity: 0.32, y: 0 }}
+              exit={{ opacity: 0, transition: { duration: 0.18 } }}
               transition={{ duration: 0.5, delay: 0.4 }}
               style={{
                 position: 'absolute', left: '50%', bottom: 40,
@@ -220,10 +221,9 @@ export default function SplashScreenV4() {
               <span style={{ fontFamily: 'GreedStandard', fontSize: 13, color: '#000409', letterSpacing: -0.1 }}>
                 scroll
               </span>
-              {/* animated chevron */}
               <motion.div
                 animate={{ y: [0, 5, 0] }}
-                transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut' }}
+                transition={{ duration: 1.3, repeat: Infinity, ease: 'easeInOut' }}
                 style={{ fontSize: 14, color: '#000409', lineHeight: 1 }}
               >
                 ↓
@@ -232,139 +232,112 @@ export default function SplashScreenV4() {
           )}
         </AnimatePresence>
 
-        {/* ── Top row cards — rise from below, land on top of intro ── */}
-        {showTopCards && GRID_X.map((x, i) => (
+        {/* ── Tray: all 6 cards rise as one unified layer ─────────────────── */}
+        {/* Each card's initY = H + (finalY - CARD_Y_TOP) so every card       */}
+        {/* travels 848px regardless of row — same spring = perfect sync.     */}
+        {showTray && ALL_CARDS.map((card, i) => {
+          const initY = H + (card.y - CARD_Y_TOP)
+          return (
+            <motion.div
+              key={`card-${i}`}
+              initial={{ x: card.x, y: initY, width: 410, height: 410, borderRadius: 12 }}
+              animate={{ x: card.x, y: card.y, width: 410, height: 410, borderRadius: 12 }}
+              transition={TRAY_SPRING}
+              style={{
+                position: 'absolute', top: 0, left: 0,
+                overflow: 'hidden',
+                outline: card.border ? '1px solid #e0e1e1' : 'none',
+                willChange: 'transform',
+              }}
+            >
+              <img src={card.src} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+
+              {card.border && (
+                <>
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 0.7 }}
+                    transition={{ duration: 0.5, ease: 'easeOut', delay: 0.85 }}
+                    style={{
+                      position: 'absolute', inset: 0,
+                      backgroundImage: `url(${IMG.watermark})`,
+                      backgroundSize: 'cover', pointerEvents: 'none',
+                    }}
+                  />
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ duration: 0.4, ease: 'easeOut', delay: 0.95 }}
+                    style={{ position: 'absolute', top: 12, right: 12, width: 24, height: 24, borderRadius: 4, overflow: 'hidden' }}
+                  >
+                    <img src={IMG.heart} alt="" style={{ width: '100%', height: '100%' }} />
+                  </motion.div>
+                </>
+              )}
+            </motion.div>
+          )
+        })}
+
+        {/* ── Header — slides in after tray lands ─────────────────────────── */}
+        {showTray && (
           <motion.div
-            key={`top-${x}`}
-            initial={{ x, y: H + 100, width: 410, height: 410, opacity: 0, borderRadius: 12 }}
-            animate={{ x, y: CARD_Y_GRID, width: 410, height: 410, opacity: 1, borderRadius: 12 }}
-            transition={CARD_SPRING}
+            initial={{ y: -56, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ ...EASE, delay: 1.05 }}
             style={{
-              position: 'absolute', top: 0, left: 0,
-              overflow: 'hidden',
-              outline: '1px solid #e0e1e1',
-              willChange: 'transform',
+              position: 'absolute', left: 13, top: 24,
+              width: 1254, height: 48,
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              zIndex: 3,
             }}
           >
-            <img src={TOP_IMGS[i]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 0.7 }}
-              transition={{ duration: 0.4, ease: 'easeOut', delay: 0.2 }}
-              style={{
-                position: 'absolute', inset: 0,
-                backgroundImage: `url(${IMG.watermark})`,
-                backgroundSize: 'cover', pointerEvents: 'none',
-              }}
-            />
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.35, ease: 'easeOut', delay: 0.3 }}
-              style={{ position: 'absolute', top: 12, right: 12, width: 24, height: 24, borderRadius: 4, overflow: 'hidden' }}
-            >
-              <img src={IMG.heart} alt="" style={{ width: '100%', height: '100%' }} />
-            </motion.div>
-          </motion.div>
-        ))}
-
-        {/* ── Header (phase 3) ─────────────────────────────────────── */}
-        <AnimatePresence>
-          {showHeader && (
-            <motion.div
-              key="header"
-              initial={{ y: -64, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ ...EASE, delay: 0.15 }}
-              style={{
-                position: 'absolute', left: 13, top: 24,
-                width: 1254, height: 48,
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                zIndex: 3,
-              }}
-            >
-              <span style={{ fontFamily: 'GreedStandard', fontSize: 44, letterSpacing: -1.32, color: '#000409' }}>
-                <span style={{ fontWeight: 420 }}>Olivia </span>
-                <span style={{ fontWeight: 300 }}>Stone</span>
-              </span>
-              <div style={{ display: 'flex', gap: 16, alignItems: 'center', width: 293 }}>
-                <button style={{
-                  flex: 1,
-                  background: '#000409', color: 'white', border: 'none', borderRadius: 8,
-                  padding: '10px 24px', height: 48,
-                  fontSize: 16, fontFamily: 'GreedStandard', fontWeight: 450,
-                  cursor: 'pointer',
-                  boxShadow: 'inset 0px 2px 2px rgba(255,255,255,0.25)',
-                }}>Pay &amp; Remove Watermark</button>
-                <div style={{
-                  width: 48, height: 48, borderRadius: '50%',
-                  border: '0.375px solid #e5e6e6',
-                  background: 'linear-gradient(167deg, white 15%, #cccdce 167%)',
-                  padding: 2.25, overflow: 'hidden', flexShrink: 0,
-                }}>
-                  <img src={IMG.avatar} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
-                </div>
+            <span style={{ fontFamily: 'GreedStandard', fontSize: 44, letterSpacing: -1.32, color: '#000409' }}>
+              <span style={{ fontWeight: 420 }}>Olivia </span>
+              <span style={{ fontWeight: 300 }}>Stone</span>
+            </span>
+            <div style={{ display: 'flex', gap: 16, alignItems: 'center', width: 293 }}>
+              <button style={{
+                flex: 1,
+                background: '#000409', color: 'white', border: 'none', borderRadius: 8,
+                padding: '10px 24px', height: 48,
+                fontSize: 16, fontFamily: 'GreedStandard', fontWeight: 450,
+                cursor: 'pointer',
+                boxShadow: 'inset 0px 2px 2px rgba(255,255,255,0.25)',
+              }}>Pay &amp; Remove Watermark</button>
+              <div style={{
+                width: 48, height: 48, borderRadius: '50%',
+                border: '0.375px solid #e5e6e6',
+                background: 'linear-gradient(167deg, white 15%, #cccdce 167%)',
+                padding: 2.25, overflow: 'hidden', flexShrink: 0,
+              }}>
+                <img src={IMG.avatar} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+            </div>
+          </motion.div>
+        )}
 
-        {/* ── Bottom row (phase 4) ──────────────────────────────────── */}
-        {showBotRow && BOT_ITEMS.map(({ x, src, border }, i) => (
+        {/* ── Toast — appears after header settles ────────────────────────── */}
+        {showTray && (
           <motion.div
-            key={`bot-${x}`}
-            initial={{ x, y: H + 60, width: 410, height: 410, opacity: 0, borderRadius: 12 }}
-            animate={{ x, y: BOT_Y_GRID, width: 410, height: 410, opacity: 1, borderRadius: 12 }}
-            transition={{ ...SPRING, delay: i * 0.07 }}
+            initial={{ y: 48, opacity: 0, x: '-50%' }}
+            animate={{ y: 0, opacity: 1, x: '-50%' }}
+            transition={{ type: 'spring', stiffness: 80, damping: 20, mass: 1, delay: 1.5 }}
             style={{
-              position: 'absolute', top: 0, left: 0,
-              overflow: 'hidden',
-              outline: border ? '1px solid #e0e1e1' : 'none',
-              willChange: 'transform',
+              position: 'absolute', left: '50%', bottom: 16,
+              width: 356, height: 48,
+              background: 'white', border: '1.5px solid #e0e1e1', borderRadius: 8,
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '8px 12px',
+              boxShadow: '0 2px 16px rgba(0,0,0,0.08)',
+              pointerEvents: 'auto', zIndex: 10,
             }}
           >
-            <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            {border && (
-              <>
-                <div style={{
-                  position: 'absolute', inset: 0,
-                  backgroundImage: `url(${IMG.watermark})`,
-                  backgroundSize: 'cover', opacity: 0.7,
-                  pointerEvents: 'none',
-                }} />
-                <div style={{ position: 'absolute', top: 12, right: 12, width: 24, height: 24, borderRadius: 4, overflow: 'hidden' }}>
-                  <img src={IMG.heart} alt="" style={{ width: '100%', height: '100%' }} />
-                </div>
-              </>
-            )}
+            <img src={IMG.favIcon} alt="" style={{ width: 20, height: 20, flexShrink: 0 }} />
+            <span style={{ fontFamily: 'GreedStandard', fontSize: 14, color: '#000409', lineHeight: '16px' }}>
+              Pick your favourites. Pay once to make them yours.
+            </span>
           </motion.div>
-        ))}
-
-        {/* ── Toast (phase 4) ──────────────────────────────────────── */}
-        <AnimatePresence>
-          {showToast && (
-            <motion.div
-              key="toast"
-              initial={{ y: 60, opacity: 0, x: '-50%' }}
-              animate={{ y: 0, opacity: 1, x: '-50%' }}
-              transition={{ ...SPRING, stiffness: 90, damping: 18, delay: 0.3 }}
-              style={{
-                position: 'absolute', left: '50%', bottom: 16,
-                width: 356, height: 48,
-                background: 'white', border: '1.5px solid #e0e1e1', borderRadius: 8,
-                display: 'flex', alignItems: 'center', gap: 8,
-                padding: '8px 12px',
-                boxShadow: '0 2px 16px rgba(0,0,0,0.1)',
-                pointerEvents: 'auto', zIndex: 10,
-              }}
-            >
-              <img src={IMG.favIcon} alt="" style={{ width: 20, height: 20, flexShrink: 0 }} />
-              <span style={{ fontFamily: 'GreedStandard', fontSize: 14, color: '#000409', lineHeight: '16px' }}>
-                Pick your favourites. Pay once to make them yours.
-              </span>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        )}
 
       </div>
     </div>
