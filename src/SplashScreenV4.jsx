@@ -19,30 +19,41 @@ const IMG = {
 const W = 1280
 const H = 960
 
-// Phase 0: intro fades in (avatar, leaves at rest, name)     hold 900ms
-// Phase 1: leaves breathe — spread outward then return        hold 1000ms
-// Phase 2: all 3 cards enter simultaneously from below,
-//          intro shrinks to small stamp at top — hold         hold 1700ms
-// Phase 3: bottom row in + intro exits off top + header in   hold 800ms
+// Phase 0: avatar fades in centered (white bg)               hold 900ms
+// Phase 1: name fades up + leaves breathe                    hold 1000ms
+// Phase 2: ALL 6 images enter from below simultaneously,
+//          intro shrinks to stamp at top — hold here         hold 1800ms
+// Phase 3: all 6 images shift up to final grid,
+//          header slides in, intro exits off top             hold 800ms
 // Phase 4: toast (final)
-const PHASE_HOLD = [900, 1000, 1700, 800]
+const PHASE_HOLD = [900, 1000, 1800, 800]
 
 const SPRING      = { type: 'spring', stiffness: 85,  damping: 20, mass: 1 }
 const EASE        = { duration: 0.65, ease: [0.25, 0.1, 0.25, 1] }
 const CARD_SPRING = { type: 'spring', stiffness: 55,  damping: 24, mass: 3 }
 
-// Phase 2 intro stamp: scale 0.45 with visual center at y≈56px (above cards at y=112)
-const INTRO_W      = 342
-const INTRO_H      = 224
-const INTRO_X      = (W - INTRO_W) / 2   // 469
-const INTRO_Y0     = (H - INTRO_H) / 2   // 368
-const INTRO_SCALE2 = 0.45
-const INTRO_Y2     = -56                  // visual center = -56+112 = 56px from top
+// Intro block
+const INTRO_W  = 342
+const INTRO_H  = 224
+const INTRO_X  = (W - INTRO_W) / 2   // 469 — horizontally centered
+const INTRO_Y0 = (H - INTRO_H) / 2   // 368 — vertically centered
 
-const CARD_Y_GRID  = 112
-const GRID_X       = [13, 435, 857]
-const TOP_IMGS     = [IMG.photoLeft, IMG.photoMid, IMG.photoRight]
-const BOT_ITEMS    = [
+// Phase 2 stamp: scale+position matches Figma node 2963:5151
+// visual top ≈ 103px, visual bottom ≈ 288px (just above top row cards at y=272)
+const INTRO_SCALE2 = 0.826
+const INTRO_Y2     = 84
+
+// Phase 2 card positions (Figma mid frame — top row fully visible, bottom row peeking)
+const MID_TOP_Y   = 272
+const MID_BOT_Y   = 696
+
+// Phase 3 final grid positions (Figma landing frame 2963:5203)
+const CARD_Y_GRID = 112
+const BOT_Y_GRID  = 534
+
+const GRID_X   = [13, 435, 857]
+const TOP_IMGS = [IMG.photoLeft, IMG.photoMid, IMG.photoRight]
+const BOT_ITEMS = [
   { x: 13,  src: IMG.promoCard,     border: false },
   { x: 435, src: IMG.photoBotMid,   border: true  },
   { x: 857, src: IMG.photoBotRight, border: true  },
@@ -51,11 +62,10 @@ const BOT_ITEMS    = [
 // ── Leaf wreath ───────────────────────────────────────────────────────────────
 function Wreath({ size = 80, breathe = false }) {
   const s      = size / 80
-  const cW     = 46 * s,    cH = 81.778 * s
+  const cW     = 46 * s,     cH = 81.778 * s
   const iW     = 41.148 * s, iH = 96.503 * s
   const totalW = 152 * s
 
-  // Leaves always at 0° (rest); breathe = spread slightly outward then return
   const leftAnim  = breathe ? { rotate: [0, 10, 0] }  : { rotate: 0 }
   const rightAnim = breathe ? { rotate: [0, -10, 0] } : { rotate: 0 }
   const breatheTr = breathe
@@ -86,11 +96,7 @@ function Wreath({ size = 80, breathe = false }) {
       </div>
 
       <motion.div
-        style={{
-          position: 'absolute', left: 106 * s, top: 0,
-          width: cW, height: cH,
-          transformOrigin: 'left center',
-        }}
+        style={{ position: 'absolute', left: 106 * s, top: 0, width: cW, height: cH, transformOrigin: 'left center' }}
         initial={{ rotate: 0 }}
         animate={rightAnim}
         transition={{ ...breatheTr, delay: breathe ? 0.04 : 0 }}
@@ -100,30 +106,6 @@ function Wreath({ size = 80, breathe = false }) {
         </div>
       </motion.div>
     </div>
-  )
-}
-
-// ── Watermark + heart overlays ────────────────────────────────────────────────
-function CardOverlays({ show = false, delay = 0 }) {
-  return (
-    <>
-      <motion.div
-        animate={{ opacity: show ? 0.7 : 0 }}
-        transition={{ duration: 0.35, ease: 'easeOut', delay: show ? delay : 0 }}
-        style={{
-          position: 'absolute', inset: 0,
-          backgroundImage: `url(${IMG.watermark})`,
-          backgroundSize: 'cover', pointerEvents: 'none',
-        }}
-      />
-      <motion.div
-        animate={{ opacity: show ? 1 : 0 }}
-        transition={{ duration: 0.35, ease: 'easeOut', delay: show ? delay + 0.1 : 0 }}
-        style={{ position: 'absolute', top: 12, right: 12, width: 24, height: 24, borderRadius: 4, overflow: 'hidden' }}
-      >
-        <img src={IMG.heart} alt="" style={{ width: '100%', height: '100%' }} />
-      </motion.div>
-    </>
   )
 }
 
@@ -147,12 +129,14 @@ export default function SplashScreenV4() {
   }, [phase])
 
   const breathe    = phase === 1
-  const showIntro  = phase <= 2   // shrinks in phase 2, exits in phase 3
+  const showText   = phase >= 1
+  const showIntro  = phase <= 2
   const showCards  = phase >= 2
-  const showBottom = phase >= 3
+  const isGrid     = phase >= 3
+  const showHeader = phase >= 3
   const showToast  = phase >= 4
 
-  const introScale = phase >= 2 ? INTRO_SCALE2 : 1
+  const introScale = isGrid ? INTRO_SCALE2 : (phase >= 2 ? INTRO_SCALE2 : 1)
   const introY     = phase >= 2 ? INTRO_Y2 : INTRO_Y0
 
   return (
@@ -161,16 +145,15 @@ export default function SplashScreenV4() {
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       background: 'white', overflow: 'hidden',
     }}>
-      <div
-        style={{
-          width: W, height: H,
-          position: 'relative',
-          transform: `scale(${scale})`,
-          transformOrigin: 'center center',
-          background: '#ffffff',
-          flexShrink: 0,
-        }}
-      >
+      <div style={{
+        width: W, height: H,
+        position: 'relative',
+        transform: `scale(${scale})`,
+        transformOrigin: 'center center',
+        background: '#ffffff',
+        flexShrink: 0,
+        overflow: 'hidden',
+      }}>
 
         {/* ── Intro: avatar + wreath + name ───────────────────────────── */}
         <AnimatePresence>
@@ -194,7 +177,13 @@ export default function SplashScreenV4() {
               }}
             >
               <Wreath size={100} breathe={breathe} />
-              <div style={{ textAlign: 'center', pointerEvents: 'none' }}>
+
+              <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: showText ? 1 : 0, y: showText ? 0 : 12 }}
+                transition={{ duration: 0.5, ease: [0.25, 0.1, 0.25, 1], delay: showText ? 0.2 : 0 }}
+                style={{ textAlign: 'center', pointerEvents: 'none' }}
+              >
                 <p style={{
                   fontFamily: 'GreedStandard', fontWeight: 420, fontSize: 22,
                   letterSpacing: -0.22, lineHeight: '24px', color: '#000409', margin: 0,
@@ -208,18 +197,21 @@ export default function SplashScreenV4() {
                   <span style={{ fontWeight: 420 }}>Olivia </span>
                   <span style={{ fontWeight: 300 }}>Stone</span>
                 </p>
-              </div>
+              </motion.div>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* ── Top row cards — all enter at once in phase 2, no stagger ── */}
+        {/* ── Top row — enter phase 2 at y=272, shift to y=112 in phase 3 ── */}
         {showCards && GRID_X.map((x, i) => (
           <motion.div
             key={`top-${x}`}
             initial={{ x, y: H + 100, width: 410, height: 410, opacity: 0, borderRadius: 12 }}
-            animate={{ x, y: CARD_Y_GRID, width: 410, height: 410, opacity: 1, borderRadius: 12 }}
-            transition={CARD_SPRING}
+            animate={{
+              x, y: isGrid ? CARD_Y_GRID : MID_TOP_Y,
+              width: 410, height: 410, opacity: 1, borderRadius: 12,
+            }}
+            transition={isGrid ? SPRING : CARD_SPRING}
             style={{
               position: 'absolute', top: 0, left: 0,
               overflow: 'hidden',
@@ -228,88 +220,109 @@ export default function SplashScreenV4() {
             }}
           >
             <img src={TOP_IMGS[i]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            <CardOverlays show={showBottom} delay={i * 0.08} />
+            {/* watermark overlay */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.7 }}
+              transition={{ duration: 0.4, ease: 'easeOut', delay: 0.1 }}
+              style={{
+                position: 'absolute', inset: 0,
+                backgroundImage: `url(${IMG.watermark})`,
+                backgroundSize: 'cover', pointerEvents: 'none',
+              }}
+            />
+            {/* heart */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.35, ease: 'easeOut', delay: 0.2 }}
+              style={{ position: 'absolute', top: 12, right: 12, width: 24, height: 24, borderRadius: 4, overflow: 'hidden' }}
+            >
+              <img src={IMG.heart} alt="" style={{ width: '100%', height: '100%' }} />
+            </motion.div>
           </motion.div>
         ))}
 
-        {/* ── Header + bottom row (phase 3) — all at once ─────────────── */}
-        <AnimatePresence>
-          {showBottom && (
-            <motion.div
-              key="ui-shell"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.2 }}
-              style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
-            >
-              {/* Header slides down */}
-              <motion.div
-                initial={{ y: -64, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ ...EASE, delay: 0.05 }}
-                style={{
-                  position: 'absolute', left: 13, top: 24,
-                  width: 1254, height: 48,
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  pointerEvents: 'auto',
-                }}
-              >
-                <span style={{ fontFamily: 'GreedStandard', fontSize: 44, letterSpacing: -1.32, color: '#000409' }}>
-                  <span style={{ fontWeight: 420 }}>Olivia </span>
-                  <span style={{ fontWeight: 300 }}>Stone</span>
-                </span>
-                <div style={{ display: 'flex', gap: 16, alignItems: 'center', width: 293 }}>
-                  <button style={{
-                    flex: 1,
-                    background: '#000409', color: 'white', border: 'none', borderRadius: 8,
-                    padding: '10px 24px', height: 48,
-                    fontSize: 16, fontFamily: 'GreedStandard', fontWeight: 450,
-                    cursor: 'pointer',
-                    boxShadow: 'inset 0px 2px 2px rgba(255,255,255,0.25)',
-                  }}>Pay &amp; Remove Watermark</button>
-                  <div style={{
-                    width: 48, height: 48, borderRadius: '50%',
-                    border: '0.375px solid #e5e6e6',
-                    background: 'linear-gradient(167deg, white 15%, #cccdce 167%)',
-                    padding: 2.25, overflow: 'hidden', flexShrink: 0,
-                  }}>
-                    <img src={IMG.avatar} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
-                  </div>
-                </div>
-              </motion.div>
-
-              {/* Bottom row slides up */}
-              {BOT_ITEMS.map(({ x, src, border }, i) => (
+        {/* ── Bottom row — enter phase 2 at y=696 (peeking), shift to y=534 in phase 3 ── */}
+        {showCards && BOT_ITEMS.map(({ x, src, border }, i) => (
+          <motion.div
+            key={`bot-${x}`}
+            initial={{ x, y: H + 100, width: 410, height: 410, opacity: 0, borderRadius: 12 }}
+            animate={{
+              x, y: isGrid ? BOT_Y_GRID : MID_BOT_Y,
+              width: 410, height: 410, opacity: 1, borderRadius: 12,
+            }}
+            transition={isGrid ? SPRING : CARD_SPRING}
+            style={{
+              position: 'absolute', top: 0, left: 0,
+              overflow: 'hidden',
+              outline: border ? '1px solid #e0e1e1' : 'none',
+              willChange: 'transform',
+            }}
+          >
+            <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            {border && (
+              <>
                 <motion.div
-                  key={x}
-                  initial={{ y: 120, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
-                  transition={{ ...SPRING, delay: 0.05 + i * 0.07 }}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 0.7 }}
+                  transition={{ duration: 0.4, ease: 'easeOut', delay: 0.1 }}
                   style={{
-                    position: 'absolute', left: x, top: 534,
-                    width: 410, height: 410, borderRadius: 12,
-                    overflow: 'hidden',
-                    outline: border ? '1px solid #e0e1e1' : 'none',
+                    position: 'absolute', inset: 0,
+                    backgroundImage: `url(${IMG.watermark})`,
+                    backgroundSize: 'cover', pointerEvents: 'none',
                   }}
+                />
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 0.35, ease: 'easeOut', delay: 0.2 }}
+                  style={{ position: 'absolute', top: 12, right: 12, width: 24, height: 24, borderRadius: 4, overflow: 'hidden' }}
                 >
-                  <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  {border && (
-                    <>
-                      <div style={{
-                        position: 'absolute', inset: 0,
-                        backgroundImage: `url(${IMG.watermark})`,
-                        backgroundSize: 'cover', opacity: 0.7,
-                      }} />
-                      <div style={{
-                        position: 'absolute', top: 12, right: 12,
-                        width: 24, height: 24, borderRadius: 4, overflow: 'hidden',
-                      }}>
-                        <img src={IMG.heart} alt="" style={{ width: '100%', height: '100%' }} />
-                      </div>
-                    </>
-                  )}
+                  <img src={IMG.heart} alt="" style={{ width: '100%', height: '100%' }} />
                 </motion.div>
-              ))}
+              </>
+            )}
+          </motion.div>
+        ))}
+
+        {/* ── Header (phase 3) ─────────────────────────────────────────── */}
+        <AnimatePresence>
+          {showHeader && (
+            <motion.div
+              key="header"
+              initial={{ y: -64, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ ...EASE, delay: 0.1 }}
+              style={{
+                position: 'absolute', left: 13, top: 24,
+                width: 1254, height: 48,
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                zIndex: 3,
+              }}
+            >
+              <span style={{ fontFamily: 'GreedStandard', fontSize: 44, letterSpacing: -1.32, color: '#000409' }}>
+                <span style={{ fontWeight: 420 }}>Olivia </span>
+                <span style={{ fontWeight: 300 }}>Stone</span>
+              </span>
+              <div style={{ display: 'flex', gap: 16, alignItems: 'center', width: 293 }}>
+                <button style={{
+                  flex: 1,
+                  background: '#000409', color: 'white', border: 'none', borderRadius: 8,
+                  padding: '10px 24px', height: 48,
+                  fontSize: 16, fontFamily: 'GreedStandard', fontWeight: 450,
+                  cursor: 'pointer',
+                  boxShadow: 'inset 0px 2px 2px rgba(255,255,255,0.25)',
+                }}>Pay &amp; Remove Watermark</button>
+                <div style={{
+                  width: 48, height: 48, borderRadius: '50%',
+                  border: '0.375px solid #e5e6e6',
+                  background: 'linear-gradient(167deg, white 15%, #cccdce 167%)',
+                  padding: 2.25, overflow: 'hidden', flexShrink: 0,
+                }}>
+                  <img src={IMG.avatar} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+                </div>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
