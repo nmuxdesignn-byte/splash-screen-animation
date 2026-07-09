@@ -2,8 +2,9 @@ import { useState } from 'react'
 import SplashScreenV1 from './SplashScreenV1'
 import SplashScreenV2 from './SplashScreenV2'
 import SplashScreenV3 from './SplashScreenV3'
+import SplashScreenV4 from './SplashScreenV4'
 
-const VERSIONS = ['v1', 'v2', 'v3']
+const VERSIONS = ['v1', 'v2', 'v3', 'v4']
 
 export default function SplashScreen() {
   const [version, setVersion] = useState('v1')
@@ -13,6 +14,7 @@ export default function SplashScreen() {
       {version === 'v1' && <SplashScreenV1 key="v1" />}
       {version === 'v2' && <SplashScreenV2 key="v2" />}
       {version === 'v3' && <SplashScreenV3 key="v3" />}
+      {version === 'v4' && <SplashScreenV4 key="v4" />}
 
       {/* Version switcher floater — fixed to viewport, outside canvas scaling */}
       <div style={{
