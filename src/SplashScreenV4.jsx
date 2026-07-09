@@ -40,7 +40,7 @@ const INTRO_X    = (W - INTRO_W) / 2   // 469
 const INTRO_Y0   = (H - INTRO_H) / 2   // 368 — vertically centered
 const INTRO_Y_TOP = 120                 // top resting position after tray rises
 
-const Y_INTER    = 548   // tray top at intermediate state (only first row visible)
+const Y_INTER    = 344   // tray top = profile bottom — grid touches profile on scroll start
 const CARD_Y_TOP = 112   // first row final grid position
 const CARD_Y_BOT = 534   // second row final grid position
 const GRID_X     = [13, 435, 857]
