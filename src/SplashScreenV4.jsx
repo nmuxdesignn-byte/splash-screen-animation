@@ -19,19 +19,19 @@ const IMG = {
 const W = 1280
 const H = 960
 
-// Phase 0: avatar fades in centered                        auto 900ms
-// Phase 1: name fades up + leaves breathe                  auto 1000ms
-// Phase 2: grid tray rises automatically, intro nudges     auto 1500ms
-//          up + shrinks slightly (pushed by rising grid)
-// Phase 3: PAUSED — grid settled, scroll hint shows        scroll trigger
-// Phase 4: intro sinks beneath grid (no fade, just covered)
-//          header slides in from top, toast appears
+// Phase 0: avatar fades in centered             auto 900ms
+// Phase 1: name fades up + leaves breathe       auto 1000ms
+// Phase 2: tray rises to Y_INTER automatically  auto 1500ms
+//          — only first row visible, second row off-screen
+//          — intro nudges up + shrinks (pushed by rising tray)
+// Phase 3: PAUSED — scroll hint shows           scroll trigger
+// Phase 4: tray slides to final grid position   (final state)
+//          intro is covered by opaque tray (no text through gaps)
+//          header + toast appear
 const PHASE_HOLD = [900, 1000, 1500, null]
 
-const EASE   = { duration: 0.65, ease: [0.25, 0.1, 0.25, 1] }
-const SPRING = { type: 'spring', stiffness: 85, damping: 20, mass: 1 }
-
-// Overdamped (ξ ≈ 1.05) — smooth landing, no bounce, used for both tray and intro nudge
+const EASE        = { duration: 0.65, ease: [0.25, 0.1, 0.25, 1] }
+const SPRING      = { type: 'spring', stiffness: 85, damping: 20, mass: 1 }
 const TRAY_SPRING = { type: 'spring', stiffness: 55, damping: 22, mass: 2 }
 
 const INTRO_W  = 342
@@ -39,16 +39,19 @@ const INTRO_H  = 224
 const INTRO_X  = (W - INTRO_W) / 2   // 469
 const INTRO_Y0 = (H - INTRO_H) / 2   // 368
 
-// Nudge: grid rising "pushes" the intro up slightly and shrinks it
-const INTRO_Y_NUDGE  = INTRO_Y0 - 38   // 330 — up 38px
-const INTRO_SC_NUDGE = 0.91             // shrink ~9%
+// After nudge: profile moves up slightly when tray rises
+const INTRO_Y_NUDGE  = 300
+const INTRO_SC_NUDGE = 0.92
 
-const CARD_Y_TOP = 112
-const CARD_Y_BOT = 534
-const GRID_X = [13, 435, 857]
+// Y_INTER: tray top in the intermediate state (phase 2–3).
+// At y=542: first row lands at canvas y=542 (fully visible),
+// second row at y=964 (off-screen — canvas is 960px tall).
+const Y_INTER    = 542
+const CARD_Y_TOP = 112   // first row final position
+const CARD_Y_BOT = 534   // second row final position
+const GRID_X     = [13, 435, 857]
 
-// All 6 cards. initY offset = H + (finalY - CARD_Y_TOP) so every card
-// travels exactly 848px — identical spring path = one unified tray.
+// Cards positioned relative to tray top (top = card.y - CARD_Y_TOP)
 const ALL_CARDS = [
   { x: GRID_X[0], y: CARD_Y_TOP, src: IMG.photoLeft,     border: true  },
   { x: GRID_X[1], y: CARD_Y_TOP, src: IMG.photoMid,      border: true  },
@@ -67,9 +70,7 @@ function Wreath({ size = 80, breathe = false }) {
 
   const leftAnim  = breathe ? { rotate: [0, 10, 0] }  : { rotate: 0 }
   const rightAnim = breathe ? { rotate: [0, -10, 0] } : { rotate: 0 }
-  const breatheTr = breathe
-    ? { duration: 0.8, times: [0, 0.38, 1] }
-    : { duration: 0.25 }
+  const breatheTr = breathe ? { duration: 0.8, times: [0, 0.38, 1] } : { duration: 0.25 }
 
   return (
     <div style={{ position: 'relative', width: totalW, height: cH }}>
@@ -86,10 +87,8 @@ function Wreath({ size = 80, breathe = false }) {
 
       <div style={{
         position: 'absolute', left: 36 * s, top: 1.778 * s,
-        width: size, height: size,
-        borderRadius: '50%',
-        border: '1px solid #e0e1e1',
-        overflow: 'hidden',
+        width: size, height: size, borderRadius: '50%',
+        border: '1px solid #e0e1e1', overflow: 'hidden',
       }}>
         <img src={IMG.avatar} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
       </div>
@@ -127,7 +126,7 @@ export default function SplashScreenV4() {
     return () => clearTimeout(t)
   }, [phase])
 
-  // Phase 3 waits for scroll — triggers phase 4
+  // Phase 3 waits for scroll → phase 4
   useEffect(() => {
     if (phase !== 3) return
     const advance = () => setPhase(4)
@@ -141,15 +140,19 @@ export default function SplashScreenV4() {
 
   const breathe        = phase === 1
   const showText       = phase >= 1
-  const showIntro      = phase <= 3   // unmounts at phase 4 → exit runs
-  const showGrid       = phase >= 2   // rises automatically after leaves
+  const showTray       = phase >= 2
   const showScrollHint = phase === 3
   const showHeader     = phase >= 4
   const showToast      = phase >= 4
+  const showOverlays   = phase >= 4   // watermark + heart appear after final settle
 
-  // Intro nudges up + shrinks when grid rises (phase 2+)
-  const introY     = phase >= 2 ? INTRO_Y_NUDGE : INTRO_Y0
-  const introScale = phase >= 2 ? INTRO_SC_NUDGE : 1
+  // Intro nudges up slightly when tray rises (phase 2+)
+  const introY   = phase >= 2 ? INTRO_Y_NUDGE : INTRO_Y0
+  const introSc  = phase >= 2 ? INTRO_SC_NUDGE : 1
+  const introTr  = phase >= 2 ? TRAY_SPRING : EASE
+
+  // Tray target: intermediate position until scroll, then final grid position
+  const trayTargetY = phase >= 4 ? CARD_Y_TOP : Y_INTER
 
   return (
     <div style={{
@@ -167,69 +170,117 @@ export default function SplashScreenV4() {
         overflow: 'hidden',
       }}>
 
-        {/* ── Intro: avatar + wreath + name ──────────────────────────────── */}
-        {/* Rendered first — grid cards render after and naturally sit on top */}
-        <AnimatePresence>
-          {showIntro && (
-            <motion.div
-              key="intro"
-              initial={{ x: INTRO_X, y: INTRO_Y0 + 24, opacity: 0, scale: 0.96 }}
-              animate={{ x: INTRO_X, y: introY, scale: introScale, opacity: 1 }}
-              exit={{
-                // Sinks DOWN beneath the grid — no opacity fade, just positional
-                y: H + 40,
-                scale: INTRO_SC_NUDGE,
-                opacity: 1,
-                transition: { duration: 0.7, ease: [0.3, 0, 0.8, 1] },
-              }}
-              transition={phase >= 2 ? TRAY_SPRING : EASE}
-              style={{
-                position: 'absolute', top: 0, left: 0,
-                width: INTRO_W,
-                display: 'flex', flexDirection: 'column',
-                alignItems: 'center', gap: 32,
-              }}
-            >
-              <Wreath size={100} breathe={breathe} />
+        {/* ── Intro — stays in DOM, tray covers it in phase 4 ─────────────── */}
+        {/* No zIndex — sits below tray (zIndex:1) naturally */}
+        <motion.div
+          initial={{ y: INTRO_Y0 + 24, opacity: 0, scale: 0.96 }}
+          animate={{ y: introY, scale: introSc, opacity: 1 }}
+          transition={introTr}
+          style={{
+            position: 'absolute', top: 0, left: INTRO_X,
+            width: INTRO_W,
+            display: 'flex', flexDirection: 'column',
+            alignItems: 'center', gap: 32,
+          }}
+        >
+          <Wreath size={100} breathe={breathe} />
 
-              <motion.div
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: showText ? 1 : 0, y: showText ? 0 : 12 }}
-                transition={{ duration: 0.5, ease: [0.25, 0.1, 0.25, 1], delay: showText ? 0.2 : 0 }}
-                style={{ textAlign: 'center', pointerEvents: 'none' }}
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: showText ? 1 : 0, y: showText ? 0 : 12 }}
+            transition={{ duration: 0.5, ease: [0.25, 0.1, 0.25, 1], delay: showText ? 0.2 : 0 }}
+            style={{ textAlign: 'center', pointerEvents: 'none' }}
+          >
+            <p style={{
+              fontFamily: 'GreedStandard', fontWeight: 420, fontSize: 22,
+              letterSpacing: -0.22, lineHeight: '24px', color: '#000409', margin: 0,
+            }}>
+              Welcome
+            </p>
+            <p style={{
+              fontFamily: 'GreedStandard', fontSize: 56, letterSpacing: -1.68,
+              lineHeight: 1.1, whiteSpace: 'nowrap', color: '#000409', margin: 0, marginTop: 4,
+            }}>
+              <span style={{ fontWeight: 420 }}>Olivia </span>
+              <span style={{ fontWeight: 300 }}>Stone</span>
+            </p>
+          </motion.div>
+        </motion.div>
+
+        {/* ── Tray — single white layer containing both rows ──────────────── */}
+        {/* Solid white background prevents any intro text from showing       */}
+        {/* through card gutters. Slides from H → Y_INTER → CARD_Y_TOP.      */}
+        {showTray && (
+          <motion.div
+            initial={{ y: H }}
+            animate={{ y: trayTargetY }}
+            transition={TRAY_SPRING}
+            style={{
+              position: 'absolute', top: 0, left: 0,
+              width: W,
+              height: H + 500,   // extends well below canvas
+              background: '#ffffff',
+              zIndex: 1,
+            }}
+          >
+            {ALL_CARDS.map((card, i) => (
+              <div
+                key={i}
+                style={{
+                  position: 'absolute',
+                  top:  card.y - CARD_Y_TOP,  // relative to tray top
+                  left: card.x,
+                  width: 410, height: 410,
+                  borderRadius: 12,
+                  overflow: 'hidden',
+                  outline: card.border ? '1px solid #e0e1e1' : 'none',
+                }}
               >
-                <p style={{
-                  fontFamily: 'GreedStandard', fontWeight: 420, fontSize: 22,
-                  letterSpacing: -0.22, lineHeight: '24px', color: '#000409', margin: 0,
-                }}>
-                  Welcome
-                </p>
-                <p style={{
-                  fontFamily: 'GreedStandard', fontSize: 56, letterSpacing: -1.68,
-                  lineHeight: 1.1, whiteSpace: 'nowrap', color: '#000409', margin: 0, marginTop: 4,
-                }}>
-                  <span style={{ fontWeight: 420 }}>Olivia </span>
-                  <span style={{ fontWeight: 300 }}>Stone</span>
-                </p>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+                <img src={card.src} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
 
-        {/* ── Scroll hint — visible while waiting in phase 3 ──────────────── */}
+                {/* Overlays appear after final position is reached */}
+                {card.border && showOverlays && (
+                  <>
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 0.7 }}
+                      transition={{ duration: 0.5, ease: 'easeOut', delay: 0.6 }}
+                      style={{
+                        position: 'absolute', inset: 0,
+                        backgroundImage: `url(${IMG.watermark})`,
+                        backgroundSize: 'cover', pointerEvents: 'none',
+                      }}
+                    />
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ duration: 0.4, ease: 'easeOut', delay: 0.7 }}
+                      style={{ position: 'absolute', top: 12, right: 12, width: 24, height: 24, borderRadius: 4, overflow: 'hidden' }}
+                    >
+                      <img src={IMG.heart} alt="" style={{ width: '100%', height: '100%' }} />
+                    </motion.div>
+                  </>
+                )}
+              </div>
+            ))}
+          </motion.div>
+        )}
+
+        {/* ── Scroll hint — floats above tray in phase 3 ──────────────────── */}
         <AnimatePresence>
           {showScrollHint && (
             <motion.div
               key="scroll-hint"
               initial={{ opacity: 0, y: -6 }}
-              animate={{ opacity: 0.32, y: 0 }}
+              animate={{ opacity: 0.45, y: 0 }}
               exit={{ opacity: 0, transition: { duration: 0.18 } }}
               transition={{ duration: 0.5, delay: 0.4 }}
               style={{
-                position: 'absolute', left: '50%', bottom: 40,
+                position: 'absolute', left: '50%', bottom: 32,
                 transform: 'translateX(-50%)',
                 display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
                 pointerEvents: 'none',
+                zIndex: 2,
               }}
             >
               <span style={{ fontFamily: 'GreedStandard', fontSize: 13, color: '#000409', letterSpacing: -0.1 }}>
@@ -246,58 +297,12 @@ export default function SplashScreenV4() {
           )}
         </AnimatePresence>
 
-        {/* ── Grid tray — rises automatically at phase 2 ──────────────────── */}
-        {/* Each card's initY keeps every card traveling 848px — same spring,  */}
-        {/* same distance — so all 6 move as one unified tray.                */}
-        {showGrid && ALL_CARDS.map((card, i) => {
-          const initY = H + (card.y - CARD_Y_TOP)
-          return (
-            <motion.div
-              key={`card-${i}`}
-              initial={{ x: card.x, y: initY, width: 410, height: 410, borderRadius: 12 }}
-              animate={{ x: card.x, y: card.y, width: 410, height: 410, borderRadius: 12 }}
-              transition={TRAY_SPRING}
-              style={{
-                position: 'absolute', top: 0, left: 0,
-                overflow: 'hidden',
-                outline: card.border ? '1px solid #e0e1e1' : 'none',
-                willChange: 'transform',
-              }}
-            >
-              <img src={card.src} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-
-              {card.border && (
-                <>
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 0.7 }}
-                    transition={{ duration: 0.5, ease: 'easeOut', delay: 0.9 }}
-                    style={{
-                      position: 'absolute', inset: 0,
-                      backgroundImage: `url(${IMG.watermark})`,
-                      backgroundSize: 'cover', pointerEvents: 'none',
-                    }}
-                  />
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ duration: 0.4, ease: 'easeOut', delay: 1.0 }}
-                    style={{ position: 'absolute', top: 12, right: 12, width: 24, height: 24, borderRadius: 4, overflow: 'hidden' }}
-                  >
-                    <img src={IMG.heart} alt="" style={{ width: '100%', height: '100%' }} />
-                  </motion.div>
-                </>
-              )}
-            </motion.div>
-          )
-        })}
-
-        {/* ── Header — slides in as intro sinks beneath grid ──────────────── */}
+        {/* ── Header — slides in as tray reaches final position ───────────── */}
         {showHeader && (
           <motion.div
             initial={{ y: -56, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            transition={{ ...EASE, delay: 0.25 }}
+            transition={{ ...EASE, delay: 0.3 }}
             style={{
               position: 'absolute', left: 13, top: 24,
               width: 1254, height: 48,
