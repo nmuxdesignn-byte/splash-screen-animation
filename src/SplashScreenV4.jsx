@@ -37,10 +37,11 @@ const TRAY_SPRING = { type: 'spring', stiffness: 55, damping: 22, mass: 2 }
 const INTRO_W  = 342
 const INTRO_H  = 224
 const INTRO_X  = (W - INTRO_W) / 2   // 469
-const INTRO_Y0 = 120                  // ~120px padding from top
+const INTRO_Y0 = (H - INTRO_H) / 2   // 368 — vertically centered (starting position)
+const INTRO_Y_TOP = 120               // where profile lands after being "pushed" up by tray
 
 // Y_INTER: tray top in the intermediate state (phase 2–3).
-// At y=548: first row at canvas y=548 (fully visible, 2px above bottom),
+// At y=548: first row at canvas y=548 (fully visible),
 // second row at y=970 (off-screen — canvas is 960px tall).
 const Y_INTER    = 548
 const CARD_Y_TOP = 112   // first row final position
@@ -139,7 +140,20 @@ export default function SplashScreenV4() {
   const showTray     = phase >= 2
   const showHeader   = phase >= 4
   const showToast    = phase >= 4
-  const showOverlays = phase >= 4   // watermark + heart appear after final settle
+  const showOverlays = phase >= 4
+
+  // Profile: starts centered → rises to top as tray comes up → sinks on scroll
+  const introY = phase >= 4
+    ? H + 50          // sinks off-screen beneath the rising tray
+    : phase >= 2
+      ? INTRO_Y_TOP   // pushed to top when tray rises (phase 2–3)
+      : INTRO_Y0      // centered (phase 0–1)
+
+  const introTr = phase >= 4
+    ? { duration: 0.65, ease: [0.4, 0, 0.85, 1] }  // smooth ease-in sink
+    : phase >= 2
+      ? TRAY_SPRING   // synced with tray rise
+      : EASE          // initial entry
 
   // Tray target: intermediate position until scroll, then final grid position
   const trayTargetY = phase >= 4 ? CARD_Y_TOP : Y_INTER
@@ -163,9 +177,9 @@ export default function SplashScreenV4() {
         {/* ── Intro — stays in DOM, tray covers it in phase 4 ─────────────── */}
         {/* No zIndex — sits below tray (zIndex:1) naturally */}
         <motion.div
-          initial={{ y: INTRO_Y0 + 20, opacity: 0, scale: 0.96 }}
-          animate={{ y: INTRO_Y0, scale: 1, opacity: 1 }}
-          transition={EASE}
+          initial={{ y: INTRO_Y0 + 24, opacity: 0, scale: 0.96 }}
+          animate={{ y: introY, scale: 1, opacity: 1 }}
+          transition={introTr}
           style={{
             position: 'absolute', top: 0, left: INTRO_X,
             width: INTRO_W,
