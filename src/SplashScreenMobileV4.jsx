@@ -174,15 +174,15 @@ export default function SplashScreenMobileV4() {
     animate(photoOp, 1, { duration: 0.7, ease: 'easeOut' })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Phase 1: photo shrinks + morphs into circular avatar
+  // Phase 1: photo shrinks + morphs into circular avatar — smooth ease, no spring bounce
   useEffect(() => {
     if (phase !== 1) return
-    // Instant border-radius lock → progressively becomes a circle as size decreases
-    photoBR.set(AVATAR_SIZE / 2)
-    animate(photoW, AVATAR_SIZE, SPRING)
-    animate(photoH, AVATAR_SIZE, SPRING)
-    animate(photoX, PHOTO_TARGET_X, SPRING)
-    animate(photoY, PHOTO_TARGET_Y, SPRING)
+    const SHRINK = { duration: 1.0, ease: [0.4, 0.0, 0.2, 1.0] }
+    animate(photoBR, AVATAR_SIZE / 2, SHRINK)
+    animate(photoW,  AVATAR_SIZE,     SHRINK)
+    animate(photoH,  AVATAR_SIZE,     SHRINK)
+    animate(photoX,  PHOTO_TARGET_X,  SHRINK)
+    animate(photoY,  PHOTO_TARGET_Y,  SHRINK)
   }, [phase]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Phase 2: leaves spring out+back, crossfade photo→wreath
@@ -274,42 +274,39 @@ export default function SplashScreenMobileV4() {
             style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 15%' }}
           />
 
-          {/* Gradient + welcome text — shown only during phase 0 full-screen state */}
+          {/* Gradient — hides instantly when phase leaves 0 */}
+          {phase === 0 && (
+            <div style={{
+              position: 'absolute', inset: 0,
+              background: 'linear-gradient(to bottom, transparent 38%, rgba(0,4,9,0.80) 100%)',
+            }} />
+          )}
+
+          {/* Welcome text — fades out downward as shrink begins */}
           <AnimatePresence>
             {phase === 0 && (
               <motion.div
-                key="overlay"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.3 }}
-                style={{ position: 'absolute', inset: 0 }}
+                key="welcome-text"
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 20, transition: { duration: 0.35, ease: 'easeIn' } }}
+                transition={{ duration: 0.5, ease: 'easeOut', delay: 0.4 }}
+                style={{
+                  position: 'absolute', bottom: CTA_H + 20, left: 0, right: 0,
+                  textAlign: 'center', padding: '0 24px',
+                }}
               >
-                <div style={{
-                  position: 'absolute', inset: 0,
-                  background: 'linear-gradient(to bottom, transparent 38%, rgba(0,4,9,0.80) 100%)',
-                }} />
-                <motion.div
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.5, ease: 'easeOut', delay: 0.4 }}
-                  style={{
-                    position: 'absolute', bottom: CTA_H + 20, left: 0, right: 0,
-                    textAlign: 'center', padding: '0 24px',
-                  }}
-                >
-                  <p style={{
-                    fontFamily: 'GreedStandard', fontWeight: 420, fontSize: 16,
-                    color: 'rgba(255,255,255,0.75)', margin: 0, letterSpacing: -0.2, lineHeight: '22px',
-                  }}>Welcome</p>
-                  <p style={{
-                    fontFamily: 'GreedStandard', fontSize: 44,
-                    letterSpacing: -1.32, lineHeight: 1.05, color: '#ffffff', margin: 0, marginTop: 4,
-                  }}>
-                    <span style={{ fontWeight: 420 }}>Olivia </span>
-                    <span style={{ fontWeight: 300 }}>Stone</span>
-                  </p>
-                </motion.div>
+                <p style={{
+                  fontFamily: 'GreedStandard', fontWeight: 420, fontSize: 16,
+                  color: 'rgba(255,255,255,0.75)', margin: 0, letterSpacing: -0.2, lineHeight: '22px',
+                }}>Welcome</p>
+                <p style={{
+                  fontFamily: 'GreedStandard', fontSize: 44,
+                  letterSpacing: -1.32, lineHeight: 1.05, color: '#ffffff', margin: 0, marginTop: 4,
+                }}>
+                  <span style={{ fontWeight: 420 }}>Olivia </span>
+                  <span style={{ fontWeight: 300 }}>Stone</span>
+                </p>
               </motion.div>
             )}
           </AnimatePresence>
