@@ -84,7 +84,7 @@ function Wreath({ size = 100, showLeaves = false }) {
         width: size, height: size, borderRadius: '50%',
         border: '1px solid #e0e1e1', overflow: 'hidden',
       }}>
-        <img src={IMG.avatar} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        <img src={IMG.photo1} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 15%' }} />
       </div>
 
       <motion.div
@@ -102,7 +102,8 @@ function Wreath({ size = 100, showLeaves = false }) {
 }
 
 // ── Watermarked photo card ─────────────────────────────────────────────────────
-function PhotoCard({ src, style }) {
+function PhotoCard({ src, style, onFavorite }) {
+  const [favorited, setFavorited] = useState(false)
   return (
     <div style={{
       position: 'absolute', left: 10,
@@ -117,8 +118,11 @@ function PhotoCard({ src, style }) {
         backgroundImage: `url(${IMG.watermark})`,
         backgroundSize: 'cover', opacity: 0.7, pointerEvents: 'none',
       }} />
-      <div style={{ position: 'absolute', top: 12, right: 12, width: 24, height: 24, borderRadius: 4, overflow: 'hidden' }}>
-        <img src={IMG.heart} alt="" style={{ width: '100%', height: '100%' }} />
+      <div
+        onClick={() => { setFavorited(true); onFavorite?.() }}
+        style={{ position: 'absolute', top: 12, right: 12, width: 24, height: 24, borderRadius: 4, overflow: 'hidden', cursor: 'pointer', zIndex: 2 }}
+      >
+        <img src={favorited ? IMG.heartFilled : IMG.heart} alt="" style={{ width: '100%', height: '100%' }} />
       </div>
     </div>
   )
@@ -129,6 +133,7 @@ export default function SplashScreenMobileV4() {
   const [phase, setPhase] = useState(0)
   const [scale, setScale] = useState(1)
   const [showLeaves, setShowLeaves] = useState(false)
+  const [hasFavorite, setHasFavorite] = useState(false)
 
   // Photo motion values — drives the shrink-to-circle animation
   const photoOp = useMotionValue(0)
@@ -344,7 +349,7 @@ export default function SplashScreenMobileV4() {
           width: MW, height: MH + 1000,
           background: '#ffffff', zIndex: 1, y: trayY,
         }}>
-          <PhotoCard src={IMG.photo1} style={{ top: TRAY_CARD1_Y }} />
+          <PhotoCard src={IMG.photo1} style={{ top: TRAY_CARD1_Y }} onFavorite={() => setHasFavorite(true)} />
 
           <div style={{
             position: 'absolute', top: TRAY_BANNER_Y, left: 10,
@@ -354,7 +359,7 @@ export default function SplashScreenMobileV4() {
             <img src={IMG.mobileBanner} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           </div>
 
-          <PhotoCard src={IMG.photo2} style={{ top: TRAY_CARD2_Y }} />
+          <PhotoCard src={IMG.photo2} style={{ top: TRAY_CARD2_Y }} onFavorite={() => setHasFavorite(true)} />
         </motion.div>
 
         {/* ── Hamburger (phases 3–4, replaced by header at phase 5) ────── */}
@@ -412,10 +417,9 @@ export default function SplashScreenMobileV4() {
               <div style={{
                 width: 32, height: 32, borderRadius: '50%',
                 border: '0.5px solid #e5e6e6', overflow: 'hidden',
-                background: 'linear-gradient(167deg, white 15%, #cccdce 167%)',
-                padding: 1.5, flexShrink: 0,
+                flexShrink: 0,
               }}>
-                <img src={IMG.avatar} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+                <img src={IMG.photo1} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover', objectPosition: 'center 15%' }} />
               </div>
               <span style={{ fontFamily: 'GreedStandard', fontSize: 20, letterSpacing: -0.6, color: '#000409' }}>
                 <span style={{ fontWeight: 420 }}>Olivia </span>
@@ -432,7 +436,7 @@ export default function SplashScreenMobileV4() {
           </motion.div>
         )}
 
-        {/* ── Phase 5 sticky CTA (with heart) ──────────────────────────── */}
+        {/* ── Phase 5 sticky CTA (heart only appears after a photo is favorited) */}
         {showHeader && (
           <motion.div
             initial={{ opacity: 0 }}
@@ -446,12 +450,14 @@ export default function SplashScreenMobileV4() {
               padding: '0 24px',
             }}
           >
-            <div style={{
-              width: 54, height: 54, borderRadius: 12, border: '1.5px solid #e0e1e1',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-            }}>
-              <img src={IMG.heartFilled} alt="" style={{ width: 24, height: 24 }} />
-            </div>
+            {hasFavorite && (
+              <div style={{
+                width: 54, height: 54, borderRadius: 12, border: '1.5px solid #e0e1e1',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+              }}>
+                <img src={IMG.heartFilled} alt="" style={{ width: 24, height: 24 }} />
+              </div>
+            )}
             <button style={{
               flex: 1, height: 54, borderRadius: 12, border: 'none',
               background: '#000409', color: 'white',
