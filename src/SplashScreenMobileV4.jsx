@@ -365,9 +365,11 @@ export default function SplashScreenMobileV4() {
             transition={{ duration: 0.3 }}
             style={{ position: 'absolute', top: 16, right: 24, zIndex: 4, cursor: 'pointer', padding: 4 }}
           >
-            {[0, 1, 2].map(i => (
-              <div key={i} style={{ width: 20, height: 1.5, background: '#000409', borderRadius: 1, marginBottom: i < 2 ? 4.5 : 0 }} />
-            ))}
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
+              <path d="M2.5 12H21.5" stroke="#000409" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M2.5 6.5H21.5" stroke="#000409" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M12.5 17.5H21.5" stroke="#000409" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
           </motion.div>
         )}
 
@@ -420,10 +422,12 @@ export default function SplashScreenMobileV4() {
                 <span style={{ fontWeight: 300 }}>Stone</span>
               </span>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4.5, cursor: 'pointer', padding: 4 }}>
-              {[0, 1, 2].map(i => (
-                <div key={i} style={{ width: 20, height: 1.5, background: '#000409', borderRadius: 1 }} />
-              ))}
+            <div style={{ cursor: 'pointer', padding: 4 }}>
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
+                <path d="M2.5 12H21.5" stroke="#000409" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M2.5 6.5H21.5" stroke="#000409" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M12.5 17.5H21.5" stroke="#000409" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
             </div>
           </motion.div>
         )}
