@@ -2,23 +2,24 @@ import { motion, useMotionValue, animate } from 'framer-motion'
 import { useState, useEffect, useRef } from 'react'
 
 const IMG = {
-  leftLeaf:    '/left-leaf.png',
-  rightLeaf:   '/right-leaf.png',
-  avatar:      '/p6.png',
-  mainPhoto:   '/p1.png',
-  promoCard:   '/banner.png',
-  heart:       '/heart.svg',
-  heartFilled: '/heart-filled.svg',
-  watermark:   '/watermark.png',
+  leftLeaf:     '/left-leaf.png',
+  rightLeaf:    '/right-leaf.png',
+  avatar:       '/p6.png',
+  photo1:       '/p1.png',
+  photo2:       '/p2.png',
+  mobileBanner: '/mobile-banner.png',
+  heart:        '/heart.svg',
+  heartFilled:  '/heart-filled.svg',
+  watermark:    '/watermark.png',
 }
 
 const MW = 390
 const MH = 844
 
 // Phase 0: full-screen photo fades in           auto 900ms
-// Phase 1: hold photo visible                   auto 1000ms
-// Phase 2: photo fades, profile appears at top, tray rises  auto 1500ms
-// Phase 3: scroll/touch-driven — tray slides up, profile sinks
+// Phase 1: hold photo + text visible            auto 1000ms
+// Phase 2: photo fades, profile top, tray rises auto 1500ms
+// Phase 3: scroll/touch-driven layer-over-layer
 // Phase 4: header + toast
 const PHASE_HOLD = [900, 1000, 1500, null]
 
@@ -27,14 +28,21 @@ const SPRING      = { type: 'spring', stiffness: 85,  damping: 20, mass: 1 }
 const TRAY_SPRING = { type: 'spring', stiffness: 55,  damping: 22, mass: 2 }
 const FOLLOW      = { type: 'spring', stiffness: 260, damping: 36, mass: 0.5 }
 
-const PROFILE_Y    = 28    // profile top when at rest
-const PROFILE_H    = 152   // wreath (74px) + gap (14px) + text (64px)
-const CARD_W       = MW - 20
+const PROFILE_Y    = 28
+const PROFILE_H    = 152
+const CARD_W       = MW - 20   // 370 — 10px margin each side
 const CARD_H       = 370
-const PROMO_H      = 148
-const Y_INTER      = PROFILE_Y + PROFILE_H + 24   // 204 — tray top at scroll start
-const CARD_Y_FINAL = 60                            // tray final y (below header)
+const BANNER_H     = 140
+const CARD_GAP     = 12
+const Y_INTER      = PROFILE_Y + PROFILE_H + 24  // 204 — tray top at scroll start
+const CARD_Y_FINAL = 60                           // tray final y (below header)
+const CTA_H        = 78                           // sticky CTA container height
 const SCROLL_TOTAL = 450
+
+// Tray internal positions
+const TRAY_CARD1_Y   = 0
+const TRAY_BANNER_Y  = CARD_H + CARD_GAP                   // 382
+const TRAY_CARD2_Y   = TRAY_BANNER_Y + BANNER_H + CARD_GAP // 534
 
 function Wreath({ size = 72 }) {
   const s      = size / 80
@@ -60,6 +68,28 @@ function Wreath({ size = 72 }) {
         <div style={{ position: 'absolute', left: 0, top: 0, width: iW, height: iH }}>
           <img src={IMG.rightLeaf} alt="" style={{ width: '100%', height: '100%' }} />
         </div>
+      </div>
+    </div>
+  )
+}
+
+function PhotoCard({ src, style }) {
+  return (
+    <div style={{
+      position: 'absolute', left: 10,
+      width: CARD_W, height: CARD_H,
+      borderRadius: 12, overflow: 'hidden',
+      outline: '1px solid #e0e1e1',
+      ...style,
+    }}>
+      <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+      <div style={{
+        position: 'absolute', inset: 0,
+        backgroundImage: `url(${IMG.watermark})`,
+        backgroundSize: 'cover', opacity: 0.7, pointerEvents: 'none',
+      }} />
+      <div style={{ position: 'absolute', top: 12, right: 12, width: 24, height: 24, borderRadius: 4, overflow: 'hidden' }}>
+        <img src={IMG.heart} alt="" style={{ width: '100%', height: '100%' }} />
       </div>
     </div>
   )
@@ -96,7 +126,7 @@ export default function SplashScreenMobileV4() {
     animate(photoOp, 1, { duration: 0.7, ease: 'easeOut' })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Phase 2: photo fades, profile appears, tray rises
+  // Phase 2: cross-fade — photo out, profile + tray in
   useEffect(() => {
     if (phase !== 2) return
     animate(photoOp,   0, EASE)
@@ -118,13 +148,12 @@ export default function SplashScreenMobileV4() {
       if (scrollAccum.current >= SCROLL_TOTAL) setPhase(4)
     }
 
-    const onWheel = (e) => update(e.deltaY)
-
+    const onWheel      = (e) => update(e.deltaY)
     const onTouchStart = (e) => { touchStartY.current = e.touches[0].clientY }
     const onTouchMove  = (e) => {
       const dy = touchStartY.current - e.touches[0].clientY
       touchStartY.current = e.touches[0].clientY
-      update(dy * 1.6)  // amplify touch slightly for responsiveness
+      update(dy * 1.6)
     }
 
     window.addEventListener('wheel',      onWheel,      { passive: true })
@@ -137,7 +166,7 @@ export default function SplashScreenMobileV4() {
     }
   }, [phase]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Phase 4: finalize
+  // Phase 4: snap + header/toast
   useEffect(() => {
     if (phase !== 4) return
     animate(trayY, CARD_Y_FINAL, TRAY_SPRING)
@@ -145,6 +174,7 @@ export default function SplashScreenMobileV4() {
     profileY.set(MH + 100)
   }, [phase]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const showChrome = phase >= 2  // hamburger + sticky CTA
   const showHeader = phase >= 4
   const showToast  = phase >= 4
 
@@ -164,32 +194,24 @@ export default function SplashScreenMobileV4() {
         overflow: 'hidden',
       }}>
 
-        {/* ── Full-screen photo intro (phases 0–1) ──────────────────────── */}
+        {/* ── Full-screen photo intro (phases 0–1) ─────────────────────── */}
         <motion.div style={{ position: 'absolute', inset: 0, opacity: photoOp }}>
-          <img
-            src={IMG.mainPhoto}
-            alt=""
-            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-          />
-          {/* Dark gradient for text readability */}
+          <img src={IMG.photo1} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           <div style={{
             position: 'absolute', inset: 0,
-            background: 'linear-gradient(to bottom, transparent 40%, rgba(0,4,9,0.78) 100%)',
+            background: 'linear-gradient(to bottom, transparent 38%, rgba(0,4,9,0.80) 100%)',
           }} />
-          {/* Welcome text at bottom of photo */}
           <div style={{
-            position: 'absolute', bottom: 60, left: 0, right: 0,
+            position: 'absolute', bottom: CTA_H + 20, left: 0, right: 0,
             textAlign: 'center', padding: '0 24px', pointerEvents: 'none',
           }}>
             <p style={{
               fontFamily: 'GreedStandard', fontWeight: 420, fontSize: 16,
-              color: 'rgba(255,255,255,0.75)', margin: 0,
-              letterSpacing: -0.2, lineHeight: '22px',
+              color: 'rgba(255,255,255,0.75)', margin: 0, letterSpacing: -0.2, lineHeight: '22px',
             }}>Welcome</p>
             <p style={{
               fontFamily: 'GreedStandard', fontSize: 44,
-              letterSpacing: -1.32, lineHeight: 1.05,
-              color: '#ffffff', margin: 0, marginTop: 4,
+              letterSpacing: -1.32, lineHeight: 1.05, color: '#ffffff', margin: 0, marginTop: 4,
             }}>
               <span style={{ fontWeight: 420 }}>Olivia </span>
               <span style={{ fontWeight: 300 }}>Stone</span>
@@ -197,15 +219,13 @@ export default function SplashScreenMobileV4() {
           </div>
         </motion.div>
 
-        {/* ── Profile — wreath + text (phases 2+) ──────────────────────── */}
-        <motion.div
-          style={{
-            position: 'absolute', left: 0, right: 0,
-            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14,
-            y: profileY, opacity: profileOp,
-            zIndex: 0, pointerEvents: 'none',
-          }}
-        >
+        {/* ── Profile — wreath + text ───────────────────────────────────── */}
+        <motion.div style={{
+          position: 'absolute', left: 0, right: 0,
+          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14,
+          y: profileY, opacity: profileOp,
+          zIndex: 0, pointerEvents: 'none',
+        }}>
           <Wreath size={72} />
           <div style={{ textAlign: 'center' }}>
             <p style={{
@@ -214,8 +234,7 @@ export default function SplashScreenMobileV4() {
             }}>Welcome</p>
             <p style={{
               fontFamily: 'GreedStandard', fontSize: 38,
-              letterSpacing: -1.14, lineHeight: 1.1,
-              color: '#000409', margin: 0, marginTop: 2,
+              letterSpacing: -1.14, lineHeight: 1.1, color: '#000409', margin: 0, marginTop: 2,
             }}>
               <span style={{ fontWeight: 420 }}>Olivia </span>
               <span style={{ fontWeight: 300 }}>Stone</span>
@@ -223,75 +242,73 @@ export default function SplashScreenMobileV4() {
           </div>
         </motion.div>
 
-        {/* ── Tray — card + promo + CTA, slides up over profile ─────────── */}
-        <motion.div
-          style={{
-            position: 'absolute', top: 0, left: 0,
-            width: MW, height: MH + 800,
-            background: '#ffffff',
-            zIndex: 1,
-            y: trayY,
-          }}
-        >
-          {/* Main photo card */}
-          <div style={{
-            position: 'absolute', top: 0, left: 10,
-            width: CARD_W, height: CARD_H,
-            borderRadius: 12, overflow: 'hidden',
-            outline: '1px solid #e0e1e1',
-          }}>
-            <img
-              src={IMG.mainPhoto}
-              alt=""
-              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-            />
-            <div style={{
-              position: 'absolute', inset: 0,
-              backgroundImage: `url(${IMG.watermark})`,
-              backgroundSize: 'cover', opacity: 0.7, pointerEvents: 'none',
-            }} />
-            <div style={{
-              position: 'absolute', top: 12, right: 12,
-              width: 24, height: 24, borderRadius: 4, overflow: 'hidden',
-            }}>
-              <img src={IMG.heart} alt="" style={{ width: '100%', height: '100%' }} />
-            </div>
-          </div>
+        {/* ── Tray — cards + banner, slides up over profile ────────────── */}
+        <motion.div style={{
+          position: 'absolute', top: 0, left: 0,
+          width: MW, height: MH + 1000,
+          background: '#ffffff', zIndex: 1, y: trayY,
+        }}>
+          {/* Photo card 1 */}
+          <PhotoCard src={IMG.photo1} style={{ top: TRAY_CARD1_Y }} />
 
-          {/* Promo card */}
+          {/* Mobile promo banner */}
           <div style={{
-            position: 'absolute', top: CARD_H + 12, left: 10,
-            width: CARD_W, height: PROMO_H,
+            position: 'absolute', top: TRAY_BANNER_Y, left: 10,
+            width: CARD_W, height: BANNER_H,
             borderRadius: 12, overflow: 'hidden',
           }}>
-            <img
-              src={IMG.promoCard}
-              alt=""
-              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-            />
+            <img src={IMG.mobileBanner} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           </div>
 
-          {/* CTA button */}
-          <div style={{
-            position: 'absolute',
-            top: CARD_H + PROMO_H + 20,
-            left: 24, right: 24,
-          }}>
+          {/* Photo card 2 */}
+          <PhotoCard src={IMG.photo2} style={{ top: TRAY_CARD2_Y }} />
+        </motion.div>
+
+        {/* ── Hamburger — visible from phase 2, hidden when header takes over */}
+        {showChrome && !showHeader && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.3 }}
+            style={{
+              position: 'absolute', top: 16, right: 24,
+              zIndex: 4, cursor: 'pointer', padding: 4,
+            }}
+          >
+            {[0, 1, 2].map(i => (
+              <div key={i} style={{ width: 20, height: 1.5, background: '#000409', borderRadius: 1, marginBottom: i < 2 ? 4.5 : 0 }} />
+            ))}
+          </motion.div>
+        )}
+
+        {/* ── Sticky CTA — always at bottom from phase 2 ───────────────── */}
+        {showChrome && !showHeader && (
+          <motion.div
+            initial={{ y: 80, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ ...SPRING, delay: 0.2 }}
+            style={{
+              position: 'absolute', bottom: 0, left: 0, right: 0,
+              height: CTA_H, zIndex: 5,
+              background: 'white',
+              borderTop: '1px solid #e0e1e1',
+              display: 'flex', alignItems: 'center',
+              padding: '0 24px',
+            }}
+          >
             <button style={{
-              width: '100%', height: 54,
-              borderRadius: 12, border: 'none',
+              width: '100%', height: 54, borderRadius: 12, border: 'none',
               background: '#000409', color: 'white',
               fontFamily: 'GreedStandard', fontWeight: 450,
-              fontSize: 17, letterSpacing: -0.3,
-              cursor: 'pointer',
+              fontSize: 17, letterSpacing: -0.3, cursor: 'pointer',
               boxShadow: 'inset 0 2px 2px rgba(255,255,255,0.25)',
             }}>
               Pay &amp; Remove Watermark
             </button>
-          </div>
-        </motion.div>
+          </motion.div>
+        )}
 
-        {/* ── Header ───────────────────────────────────────────────────── */}
+        {/* ── Header (phase 4) ─────────────────────────────────────────── */}
         {showHeader && (
           <motion.div
             initial={{ y: -60, opacity: 0 }}
@@ -305,23 +322,18 @@ export default function SplashScreenMobileV4() {
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div style={{
-                width: 32, height: 32, borderRadius: '50%', overflow: 'hidden',
-                border: '0.5px solid #e5e6e6',
+                width: 32, height: 32, borderRadius: '50%',
+                border: '0.5px solid #e5e6e6', overflow: 'hidden',
                 background: 'linear-gradient(167deg, white 15%, #cccdce 167%)',
                 padding: 1.5, flexShrink: 0,
               }}>
-                <img
-                  src={IMG.avatar}
-                  alt=""
-                  style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }}
-                />
+                <img src={IMG.avatar} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
               </div>
               <span style={{ fontFamily: 'GreedStandard', fontSize: 20, letterSpacing: -0.6, color: '#000409' }}>
                 <span style={{ fontWeight: 420 }}>Olivia </span>
                 <span style={{ fontWeight: 300 }}>Stone</span>
               </span>
             </div>
-            {/* Hamburger */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4.5, cursor: 'pointer', padding: 4 }}>
               {[0, 1, 2].map(i => (
                 <div key={i} style={{ width: 20, height: 1.5, background: '#000409', borderRadius: 1 }} />
@@ -330,20 +342,50 @@ export default function SplashScreenMobileV4() {
           </motion.div>
         )}
 
-        {/* ── Toast ────────────────────────────────────────────────────── */}
+        {/* ── Phase 4 sticky CTA (with heart) ─────────────────────────── */}
+        {showHeader && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.3, delay: 0.4 }}
+            style={{
+              position: 'absolute', bottom: 0, left: 0, right: 0,
+              height: CTA_H, zIndex: 5,
+              background: 'white', borderTop: '1px solid #e0e1e1',
+              display: 'flex', alignItems: 'center', gap: 12,
+              padding: '0 24px',
+            }}
+          >
+            <div style={{
+              width: 54, height: 54, borderRadius: 12, border: '1.5px solid #e0e1e1',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+            }}>
+              <img src={IMG.heartFilled} alt="" style={{ width: 24, height: 24 }} />
+            </div>
+            <button style={{
+              flex: 1, height: 54, borderRadius: 12, border: 'none',
+              background: '#000409', color: 'white',
+              fontFamily: 'GreedStandard', fontWeight: 450,
+              fontSize: 17, letterSpacing: -0.3, cursor: 'pointer',
+              boxShadow: 'inset 0 2px 2px rgba(255,255,255,0.25)',
+            }}>
+              Pay &amp; Remove Watermark
+            </button>
+          </motion.div>
+        )}
+
+        {/* ── Toast (phase 4) ──────────────────────────────────────────── */}
         {showToast && (
           <motion.div
             initial={{ y: 48, opacity: 0, x: '-50%' }}
             animate={{ y: 0, opacity: 1, x: '-50%' }}
             transition={{ ...SPRING, delay: 0.9 }}
             style={{
-              position: 'absolute', left: '50%', bottom: 20,
+              position: 'absolute', left: '50%', bottom: CTA_H + 12,
               width: 340, height: 44,
               background: 'white', border: '1.5px solid #e0e1e1', borderRadius: 8,
               display: 'flex', alignItems: 'center', gap: 8,
-              padding: '0 12px',
-              boxShadow: '0 2px 16px rgba(0,0,0,0.08)',
-              zIndex: 10,
+              padding: '0 12px', boxShadow: '0 2px 16px rgba(0,0,0,0.08)', zIndex: 10,
             }}
           >
             <img src={IMG.heartFilled} alt="" style={{ width: 20, height: 20, flexShrink: 0 }} />
