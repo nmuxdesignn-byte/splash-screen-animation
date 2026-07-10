@@ -1,4 +1,4 @@
-import { motion, useMotionValue, animate } from 'framer-motion'
+import { motion, useMotionValue, animate, AnimatePresence } from 'framer-motion'
 import { useState, useEffect, useRef } from 'react'
 
 const IMG = {
@@ -16,47 +16,69 @@ const IMG = {
 const MW = 390
 const MH = 844
 
-// Phase 0: full-screen photo fades in           auto 900ms
-// Phase 1: hold photo + text visible            auto 1000ms
-// Phase 2: photo fades, profile top, tray rises auto 1500ms
-// Phase 3: scroll/touch-driven layer-over-layer
-// Phase 4: header + toast
-const PHASE_HOLD = [900, 1000, 1500, null]
+// Phase 0: full-screen photo fades in             auto 900ms
+// Phase 1: photo shrinks + morphs to circle       auto 1200ms
+// Phase 2: leaves spring out+back, crossfade      auto 1000ms
+// Phase 3: intro to top + tray rises              auto 1500ms
+// Phase 4: scroll/touch driven layer-over-layer
+// Phase 5: header + toast
+const PHASE_HOLD = [900, 1200, 1000, 1500, null]
 
 const EASE        = { duration: 0.65, ease: [0.25, 0.1, 0.25, 1] }
 const SPRING      = { type: 'spring', stiffness: 85,  damping: 20, mass: 1 }
 const TRAY_SPRING = { type: 'spring', stiffness: 55,  damping: 22, mass: 2 }
 const FOLLOW      = { type: 'spring', stiffness: 260, damping: 36, mass: 0.5 }
+const LEAF_SPRING = { type: 'spring', stiffness: 220, damping: 11, mass: 1 }
 
-const PROFILE_Y    = 28
-const PROFILE_H    = 152
-const CARD_W       = MW - 20   // 370 — 10px margin each side
-const CARD_H       = 370
-const BANNER_H     = 140
-const CARD_GAP     = 12
-const Y_INTER      = PROFILE_Y + PROFILE_H + 24  // 204 — tray top at scroll start
-const CARD_Y_FINAL = 60                           // tray final y (below header)
-const CTA_H        = 78                           // sticky CTA container height
-const SCROLL_TOTAL = 450
+const AVATAR_SIZE  = 100
+const S            = AVATAR_SIZE / 80             // 1.25
+const WREATH_W     = 152 * S                      // 190
+const WREATH_H     = 81.778 * S                   // ~102.2
+const AVATAR_OFF_X = 36 * S                       // 45
+const AVATAR_OFF_Y = 1.778 * S                    // ~2.22
 
-// Tray internal positions
-const TRAY_CARD1_Y   = 0
-const TRAY_BANNER_Y  = CARD_H + CARD_GAP                   // 382
-const TRAY_CARD2_Y   = TRAY_BANNER_Y + BANNER_H + CARD_GAP // 534
+// Y of the intro container so the avatar sits exactly at canvas vertical center
+const INTRO_CENTER_Y  = MH / 2 - AVATAR_SIZE / 2 - AVATAR_OFF_Y  // ~370
 
-function Wreath({ size = 72 }) {
-  const s      = size / 80
-  const cW     = 46 * s,     cH = 81.778 * s
-  const iW     = 41.148 * s, iH = 96.503 * s
-  const totalW = 152 * s
+// Where the shrinking photo lands — matches the avatar inside Wreath when centered
+const PHOTO_TARGET_X  = (MW - WREATH_W) / 2 + AVATAR_OFF_X       // 145
+const PHOTO_TARGET_Y  = INTRO_CENTER_Y + AVATAR_OFF_Y             // ~372
+
+const PROFILE_FULL_H = WREATH_H + 16 + 70        // wreath + gap + text ≈ 188
+const INTRO_TOP_Y    = 28                         // profile y when moved to top
+const Y_INTER        = INTRO_TOP_Y + PROFILE_FULL_H + 24  // tray start y ≈ 240
+const CARD_Y_FINAL   = 60                         // tray final y (below header)
+
+const CARD_W        = MW - 20                     // 370
+const CARD_H        = 370
+const BANNER_H      = 140
+const CARD_GAP      = 12
+const CTA_H         = 78
+const SCROLL_TOTAL  = 450
+
+const TRAY_CARD1_Y  = 0
+const TRAY_BANNER_Y = CARD_H + CARD_GAP               // 382
+const TRAY_CARD2_Y  = TRAY_BANNER_Y + BANNER_H + CARD_GAP  // 534
+
+// ── Leaf wreath with spring-in animation ──────────────────────────────────────
+function Wreath({ size = 100, showLeaves = false }) {
+  const s  = size / 80
+  const cW = 46 * s,     cH = 81.778 * s
+  const iW = 41.148 * s, iH = 96.503 * s
 
   return (
-    <div style={{ position: 'relative', width: totalW, height: cH }}>
-      <div style={{ position: 'absolute', left: 0, top: 0, width: cW, height: cH }}>
+    <div style={{ position: 'relative', width: 152 * s, height: cH }}>
+      <motion.div
+        style={{ position: 'absolute', left: 0, top: 0, width: cW, height: cH, transformOrigin: 'right center' }}
+        initial={{ rotate: -38, opacity: 0 }}
+        animate={showLeaves ? { rotate: 0, opacity: 1 } : { rotate: -38, opacity: 0 }}
+        transition={LEAF_SPRING}
+      >
         <div style={{ position: 'absolute', left: 0, top: 0, width: iW, height: iH }}>
           <img src={IMG.leftLeaf} alt="" style={{ width: '100%', height: '100%' }} />
         </div>
-      </div>
+      </motion.div>
+
       <div style={{
         position: 'absolute', left: 36 * s, top: 1.778 * s,
         width: size, height: size, borderRadius: '50%',
@@ -64,15 +86,22 @@ function Wreath({ size = 72 }) {
       }}>
         <img src={IMG.avatar} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
       </div>
-      <div style={{ position: 'absolute', left: 106 * s, top: 0, width: cW, height: cH }}>
+
+      <motion.div
+        style={{ position: 'absolute', left: 106 * s, top: 0, width: cW, height: cH, transformOrigin: 'left center' }}
+        initial={{ rotate: 38, opacity: 0 }}
+        animate={showLeaves ? { rotate: 0, opacity: 1 } : { rotate: 38, opacity: 0 }}
+        transition={{ ...LEAF_SPRING, delay: showLeaves ? 0.04 : 0 }}
+      >
         <div style={{ position: 'absolute', left: 0, top: 0, width: iW, height: iH }}>
           <img src={IMG.rightLeaf} alt="" style={{ width: '100%', height: '100%' }} />
         </div>
-      </div>
+      </motion.div>
     </div>
   )
 }
 
+// ── Watermarked photo card ─────────────────────────────────────────────────────
 function PhotoCard({ src, style }) {
   return (
     <div style={{
@@ -95,18 +124,31 @@ function PhotoCard({ src, style }) {
   )
 }
 
+// ── Main ──────────────────────────────────────────────────────────────────────
 export default function SplashScreenMobileV4() {
   const [phase, setPhase] = useState(0)
   const [scale, setScale] = useState(1)
+  const [showLeaves, setShowLeaves] = useState(false)
 
-  const photoOp   = useMotionValue(0)
-  const profileY  = useMotionValue(PROFILE_Y)
-  const profileOp = useMotionValue(0)
-  const trayY     = useMotionValue(MH)
+  // Photo motion values — drives the shrink-to-circle animation
+  const photoOp = useMotionValue(0)
+  const photoW  = useMotionValue(MW)
+  const photoH  = useMotionValue(MH)
+  const photoX  = useMotionValue(0)
+  const photoY  = useMotionValue(0)
+  const photoBR = useMotionValue(0)
+
+  // Intro (wreath + name) motion values
+  const introY  = useMotionValue(INTRO_CENTER_Y)
+  const introOp = useMotionValue(0)
+
+  // Tray
+  const trayY = useMotionValue(MH)
 
   const scrollAccum = useRef(0)
   const touchStartY = useRef(0)
 
+  // Viewport scale
   useEffect(() => {
     const resize = () => setScale(Math.min(window.innerWidth / MW, window.innerHeight / MH))
     resize()
@@ -114,6 +156,7 @@ export default function SplashScreenMobileV4() {
     return () => window.removeEventListener('resize', resize)
   }, [])
 
+  // Phase auto-advance
   useEffect(() => {
     const hold = PHASE_HOLD[phase]
     if (hold == null) return
@@ -121,31 +164,49 @@ export default function SplashScreenMobileV4() {
     return () => clearTimeout(t)
   }, [phase])
 
-  // Phase 0: photo fades in
+  // Phase 0 (mount): photo fades in full-screen
   useEffect(() => {
     animate(photoOp, 1, { duration: 0.7, ease: 'easeOut' })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Phase 2: cross-fade — photo out, profile + tray in
+  // Phase 1: photo shrinks + morphs into circular avatar
   useEffect(() => {
-    if (phase !== 2) return
-    animate(photoOp,   0, EASE)
-    animate(profileOp, 1, { duration: 0.5, ease: 'easeOut', delay: 0.35 })
-    animate(trayY, Y_INTER, TRAY_SPRING)
+    if (phase !== 1) return
+    // Instant border-radius lock → progressively becomes a circle as size decreases
+    photoBR.set(AVATAR_SIZE / 2)
+    animate(photoW, AVATAR_SIZE, SPRING)
+    animate(photoH, AVATAR_SIZE, SPRING)
+    animate(photoX, PHOTO_TARGET_X, SPRING)
+    animate(photoY, PHOTO_TARGET_Y, SPRING)
   }, [phase]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Phase 3: scroll + touch driven
+  // Phase 2: leaves spring out+back, crossfade photo→wreath
+  useEffect(() => {
+    if (phase !== 2) return
+    setShowLeaves(true)
+    animate(photoOp, 0, { duration: 0.4, ease: 'easeOut' })
+    animate(introOp, 1, { duration: 0.4, ease: 'easeOut' })
+  }, [phase]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Phase 3: intro moves to top, tray rises from below
   useEffect(() => {
     if (phase !== 3) return
+    animate(introY, INTRO_TOP_Y, TRAY_SPRING)
+    animate(trayY,  Y_INTER,     TRAY_SPRING)
+  }, [phase]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Phase 4: scroll/touch driven — tray rises, intro sinks (layer-over-layer)
+  useEffect(() => {
+    if (phase !== 4) return
     scrollAccum.current = 0
 
     const update = (rawDelta) => {
       const delta = Math.sign(rawDelta) * Math.min(Math.abs(rawDelta), 80)
       scrollAccum.current = Math.max(0, Math.min(SCROLL_TOTAL, scrollAccum.current + delta))
       const t = scrollAccum.current / SCROLL_TOTAL
-      animate(trayY,    Y_INTER - t * (Y_INTER - CARD_Y_FINAL), FOLLOW)
-      animate(profileY, PROFILE_Y + t * 120, FOLLOW)
-      if (scrollAccum.current >= SCROLL_TOTAL) setPhase(4)
+      animate(trayY,  Y_INTER - t * (Y_INTER - CARD_Y_FINAL), FOLLOW)
+      animate(introY, INTRO_TOP_Y + t * 120, FOLLOW)
+      if (scrollAccum.current >= SCROLL_TOTAL) setPhase(5)
     }
 
     const onWheel      = (e) => update(e.deltaY)
@@ -166,17 +227,17 @@ export default function SplashScreenMobileV4() {
     }
   }, [phase]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Phase 4: snap + header/toast
+  // Phase 5: snap final positions, reveal header + toast
   useEffect(() => {
-    if (phase !== 4) return
-    animate(trayY, CARD_Y_FINAL, TRAY_SPRING)
-    animate(profileOp, 0, { duration: 0.15 })
-    profileY.set(MH + 100)
+    if (phase !== 5) return
+    animate(trayY,  CARD_Y_FINAL, TRAY_SPRING)
+    animate(introOp, 0, { duration: 0.15 })
+    introY.set(MH + 100)
   }, [phase]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const showChrome = phase >= 2  // hamburger + sticky CTA
-  const showHeader = phase >= 4
-  const showToast  = phase >= 4
+  const showChrome = phase >= 3
+  const showHeader = phase >= 5
+  const showToast  = phase >= 5
 
   return (
     <div style={{
@@ -194,40 +255,75 @@ export default function SplashScreenMobileV4() {
         overflow: 'hidden',
       }}>
 
-        {/* ── Full-screen photo intro (phases 0–1) ─────────────────────── */}
-        <motion.div style={{ position: 'absolute', inset: 0, opacity: photoOp }}>
-          <img src={IMG.photo1} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-          <div style={{
-            position: 'absolute', inset: 0,
-            background: 'linear-gradient(to bottom, transparent 38%, rgba(0,4,9,0.80) 100%)',
-          }} />
-          <div style={{
-            position: 'absolute', bottom: CTA_H + 20, left: 0, right: 0,
-            textAlign: 'center', padding: '0 24px', pointerEvents: 'none',
-          }}>
-            <p style={{
-              fontFamily: 'GreedStandard', fontWeight: 420, fontSize: 16,
-              color: 'rgba(255,255,255,0.75)', margin: 0, letterSpacing: -0.2, lineHeight: '22px',
-            }}>Welcome</p>
-            <p style={{
-              fontFamily: 'GreedStandard', fontSize: 44,
-              letterSpacing: -1.32, lineHeight: 1.05, color: '#ffffff', margin: 0, marginTop: 4,
-            }}>
-              <span style={{ fontWeight: 420 }}>Olivia </span>
-              <span style={{ fontWeight: 300 }}>Stone</span>
-            </p>
-          </div>
+        {/* ── Shrinking photo (phases 0–2) ──────────────────────────────── */}
+        <motion.div style={{
+          position: 'absolute', left: 0, top: 0,
+          x: photoX, y: photoY,
+          width: photoW, height: photoH,
+          borderRadius: photoBR,
+          overflow: 'hidden', opacity: photoOp,
+          zIndex: 0,
+        }}>
+          <img
+            src={IMG.photo1} alt=""
+            style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 15%' }}
+          />
+
+          {/* Gradient + welcome text — shown only during phase 0 full-screen state */}
+          <AnimatePresence>
+            {phase === 0 && (
+              <motion.div
+                key="overlay"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.3 }}
+                style={{ position: 'absolute', inset: 0 }}
+              >
+                <div style={{
+                  position: 'absolute', inset: 0,
+                  background: 'linear-gradient(to bottom, transparent 38%, rgba(0,4,9,0.80) 100%)',
+                }} />
+                <motion.div
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5, ease: 'easeOut', delay: 0.4 }}
+                  style={{
+                    position: 'absolute', bottom: CTA_H + 20, left: 0, right: 0,
+                    textAlign: 'center', padding: '0 24px',
+                  }}
+                >
+                  <p style={{
+                    fontFamily: 'GreedStandard', fontWeight: 420, fontSize: 16,
+                    color: 'rgba(255,255,255,0.75)', margin: 0, letterSpacing: -0.2, lineHeight: '22px',
+                  }}>Welcome</p>
+                  <p style={{
+                    fontFamily: 'GreedStandard', fontSize: 44,
+                    letterSpacing: -1.32, lineHeight: 1.05, color: '#ffffff', margin: 0, marginTop: 4,
+                  }}>
+                    <span style={{ fontWeight: 420 }}>Olivia </span>
+                    <span style={{ fontWeight: 300 }}>Stone</span>
+                  </p>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </motion.div>
 
-        {/* ── Profile — wreath + text ───────────────────────────────────── */}
+        {/* ── Intro — wreath + name, motion-value driven ────────────────── */}
         <motion.div style={{
           position: 'absolute', left: 0, right: 0,
-          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14,
-          y: profileY, opacity: profileOp,
+          y: introY, opacity: introOp,
+          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16,
           zIndex: 0, pointerEvents: 'none',
         }}>
-          <Wreath size={72} />
-          <div style={{ textAlign: 'center' }}>
+          <Wreath size={AVATAR_SIZE} showLeaves={showLeaves} />
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: phase >= 2 ? 1 : 0, y: phase >= 2 ? 0 : 8 }}
+            transition={{ duration: 0.5, ease: 'easeOut', delay: phase >= 2 ? 0.3 : 0 }}
+            style={{ textAlign: 'center' }}
+          >
             <p style={{
               fontFamily: 'GreedStandard', fontWeight: 420, fontSize: 14,
               color: '#000409', margin: 0, letterSpacing: -0.2, lineHeight: '20px',
@@ -239,19 +335,17 @@ export default function SplashScreenMobileV4() {
               <span style={{ fontWeight: 420 }}>Olivia </span>
               <span style={{ fontWeight: 300 }}>Stone</span>
             </p>
-          </div>
+          </motion.div>
         </motion.div>
 
-        {/* ── Tray — cards + banner, slides up over profile ────────────── */}
+        {/* ── Tray — cards + banner, slides up over intro ──────────────── */}
         <motion.div style={{
           position: 'absolute', top: 0, left: 0,
           width: MW, height: MH + 1000,
           background: '#ffffff', zIndex: 1, y: trayY,
         }}>
-          {/* Photo card 1 */}
           <PhotoCard src={IMG.photo1} style={{ top: TRAY_CARD1_Y }} />
 
-          {/* Mobile promo banner */}
           <div style={{
             position: 'absolute', top: TRAY_BANNER_Y, left: 10,
             width: CARD_W, height: BANNER_H,
@@ -260,20 +354,16 @@ export default function SplashScreenMobileV4() {
             <img src={IMG.mobileBanner} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           </div>
 
-          {/* Photo card 2 */}
           <PhotoCard src={IMG.photo2} style={{ top: TRAY_CARD2_Y }} />
         </motion.div>
 
-        {/* ── Hamburger — visible from phase 2, hidden when header takes over */}
+        {/* ── Hamburger (phases 3–4, replaced by header at phase 5) ────── */}
         {showChrome && !showHeader && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.3 }}
-            style={{
-              position: 'absolute', top: 16, right: 24,
-              zIndex: 4, cursor: 'pointer', padding: 4,
-            }}
+            style={{ position: 'absolute', top: 16, right: 24, zIndex: 4, cursor: 'pointer', padding: 4 }}
           >
             {[0, 1, 2].map(i => (
               <div key={i} style={{ width: 20, height: 1.5, background: '#000409', borderRadius: 1, marginBottom: i < 2 ? 4.5 : 0 }} />
@@ -281,7 +371,7 @@ export default function SplashScreenMobileV4() {
           </motion.div>
         )}
 
-        {/* ── Sticky CTA — always at bottom from phase 2 ───────────────── */}
+        {/* ── Sticky CTA (phases 3–4) ──────────────────────────────────── */}
         {showChrome && !showHeader && (
           <motion.div
             initial={{ y: 80, opacity: 0 }}
@@ -289,11 +379,9 @@ export default function SplashScreenMobileV4() {
             transition={{ ...SPRING, delay: 0.2 }}
             style={{
               position: 'absolute', bottom: 0, left: 0, right: 0,
-              height: CTA_H, zIndex: 5,
-              background: 'white',
+              height: CTA_H, zIndex: 5, background: 'white',
               borderTop: '1px solid #e0e1e1',
-              display: 'flex', alignItems: 'center',
-              padding: '0 24px',
+              display: 'flex', alignItems: 'center', padding: '0 24px',
             }}
           >
             <button style={{
@@ -302,13 +390,11 @@ export default function SplashScreenMobileV4() {
               fontFamily: 'GreedStandard', fontWeight: 450,
               fontSize: 17, letterSpacing: -0.3, cursor: 'pointer',
               boxShadow: 'inset 0 2px 2px rgba(255,255,255,0.25)',
-            }}>
-              Pay &amp; Remove Watermark
-            </button>
+            }}>Pay &amp; Remove Watermark</button>
           </motion.div>
         )}
 
-        {/* ── Header (phase 4) ─────────────────────────────────────────── */}
+        {/* ── Header (phase 5) ──────────────────────────────────────────── */}
         {showHeader && (
           <motion.div
             initial={{ y: -60, opacity: 0 }}
@@ -342,7 +428,7 @@ export default function SplashScreenMobileV4() {
           </motion.div>
         )}
 
-        {/* ── Phase 4 sticky CTA (with heart) ─────────────────────────── */}
+        {/* ── Phase 5 sticky CTA (with heart) ──────────────────────────── */}
         {showHeader && (
           <motion.div
             initial={{ opacity: 0 }}
@@ -368,13 +454,11 @@ export default function SplashScreenMobileV4() {
               fontFamily: 'GreedStandard', fontWeight: 450,
               fontSize: 17, letterSpacing: -0.3, cursor: 'pointer',
               boxShadow: 'inset 0 2px 2px rgba(255,255,255,0.25)',
-            }}>
-              Pay &amp; Remove Watermark
-            </button>
+            }}>Pay &amp; Remove Watermark</button>
           </motion.div>
         )}
 
-        {/* ── Toast (phase 4) ──────────────────────────────────────────── */}
+        {/* ── Toast (phase 5) ───────────────────────────────────────────── */}
         {showToast && (
           <motion.div
             initial={{ y: 48, opacity: 0, x: '-50%' }}
